@@ -1,0 +1,4 @@
+org\openmrs\module\cdrsync\fragment\controller\ContainerFragmentController.class
+org\openmrs\module\cdrsync\fragment\controller\UsersFragmentController.class
+org\openmrs\module\cdrsync\extension\html\AdminList.class
+org\openmrs\module\cdrsync\web\controller\CdrsyncController.class
