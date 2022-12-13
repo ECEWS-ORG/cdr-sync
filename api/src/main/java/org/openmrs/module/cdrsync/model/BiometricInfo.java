@@ -20,8 +20,8 @@ import java.sql.Date;
  * Please note that a corresponding table schema must be created in liquibase.xml.
  */
 //Uncomment 2 lines below if you want to make the Item class persistable, see also NigeriaemrDaoTest and liquibase.xml
-//@Entity(name = "nigeriaemr.BiometricInfo")
-//@Table(name = "biometricinfo")
+@Entity
+@Table(name = "biometricinfo")
 public class BiometricInfo {
 	
 	@Id
@@ -35,7 +35,7 @@ public class BiometricInfo {
 	private String template;
 	
 	@Column(name = "new_template")
-	private Blob newTemplate;
+	private byte[] newTemplate;
 	
 	@Column(name = "imageWidth")
 	private Integer imageWidth;
@@ -85,13 +85,16 @@ public class BiometricInfo {
 	
 	public String getTemplate() {
 		if (getNewTemplate() != null) {
-			Blob blob = getNewTemplate();
+			//			Blob blob = getNewTemplate();
 			try {
-				byte[] blobData = blob.getBytes(1, (int) blob.length());
+				//				byte[] blobData = blob.getBytes(1, (int) blob.length());
+				byte[] blobData = getNewTemplate();
 				setNewTemplate(null);
 				return new String(blobData);
 			}
-			catch (Exception ex) {}
+			catch (Exception ex) {
+				ex.printStackTrace();
+			}
 		}
 		return template;
 	}
@@ -180,11 +183,11 @@ public class BiometricInfo {
 		this.dateCreated = dateCreated;
 	}
 	
-	public Blob getNewTemplate() {
+	public byte[] getNewTemplate() {
 		return newTemplate;
 	}
 	
-	public void setNewTemplate(Blob newTemplate) {
+	public void setNewTemplate(byte[] newTemplate) {
 		this.newTemplate = newTemplate;
 	}
 }

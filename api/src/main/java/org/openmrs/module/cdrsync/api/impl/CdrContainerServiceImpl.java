@@ -7,17 +7,14 @@ import org.openmrs.api.context.Context;
 import org.openmrs.api.impl.BaseOpenmrsService;
 import org.openmrs.module.cdrsync.api.BiometricInfoService;
 import org.openmrs.module.cdrsync.api.CdrContainerService;
-import org.openmrs.module.cdrsync.api.dao.impl.BiometricInfoDaoImpl;
-import org.openmrs.module.cdrsync.container.model.*;
+import org.openmrs.module.cdrsync.api.CdrSyncEncounterService;
 import org.openmrs.module.cdrsync.container.model.EncounterType;
 import org.openmrs.module.cdrsync.container.model.PatientIdentifierType;
 import org.openmrs.module.cdrsync.container.model.VisitType;
-import org.openmrs.module.cdrsync.model.*;
-import org.openmrs.util.HttpClient;
+import org.openmrs.module.cdrsync.container.model.*;
+import org.openmrs.module.cdrsync.model.BiometricInfo;
+import org.openmrs.module.cdrsync.model.ContainerWrapper;
 import org.openmrs.util.HttpUrl;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.http.ResponseEntity;
-//import org.springframework.web.client.RestTemplate;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -38,27 +35,26 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
 	
-	//	PersonService personService = Context.getPersonService();
+	private final PatientService patientService = Context.getPatientService();
 	
-	PatientService patientService = Context.getPatientService();
+	private final VisitService visitService = Context.getVisitService();
 	
-	VisitService visitService = Context.getVisitService();
+	private final ProgramWorkflowService programWorkflowService = Context.getProgramWorkflowService();
 	
-	ProgramWorkflowService programWorkflowService = Context.getProgramWorkflowService();
+	private final ObsService obsService = Context.getObsService();
 	
-	ObsService obsService = Context.getObsService();
+	private final EncounterService encounterService = Context.getEncounterService();
 	
-	EncounterService encounterService = Context.getEncounterService();
+	private final AdministrationService administrationService = Context.getAdministrationService();
 	
-	AdministrationService administrationService = Context.getAdministrationService();
+	private final BiometricInfoService biometricInfoService = Context.getService(BiometricInfoService.class);
 	
-	BiometricInfoService biometricInfoService = new BiometricInfoServiceImpl(new BiometricInfoDaoImpl());
+	private final CdrSyncEncounterService cdrSyncEncounterService = Context.getService(CdrSyncEncounterService.class);
 	
-	//	@Autowired
-	//	private final RestTemplate restTemplate = new RestTemplate();
 	ObjectMapper objectMapper = new ObjectMapper();
 	
 	private static SecretKeySpec secretKey;
@@ -66,20 +62,32 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	private final static String SECRET = "IHVNPass1word";
 	
 	@Override
-	public void getAllPatients() {
+	public void getAllPatients() throws IOException {
 		List<Patient> patients = patientService.getAllPatients(false);
 		System.out.println("Total no of patients:: " + patients.size());
 		List<Patient> newPatients = patients.subList(0, 2);
-		System.out.println(newPatients.size());
+		System.out.println("---------" + newPatients.size());
 		buildContainer(newPatients);
 	}
 	
-	private void buildContainer(List<Patient> patients) {
+	@Override
+    public void getPatientsByEncounterDateTime(Date from, Date to) throws IOException {
+        List<Encounter> encounters = cdrSyncEncounterService.getEncountersByEncounterDateTime(from, to);
+        if (encounters != null && !encounters.isEmpty()) {
+            System.out.println("No of encounters since last sync::"+encounters.size());
+            List<Patient> patientList = encounters.stream()
+                    .map(Encounter::getPatient)
+                    .distinct()
+                    .collect(Collectors.toList());
+            System.out.println("No of patients that have encounters since last sync date::"+patientList.size());
+            buildContainer(patientList.subList(0,2));
+        }
+    }
+	
+	private void buildContainer(List<Patient> patients) throws IOException {
         List<Container> containers = new ArrayList<>();
         String datimCode = administrationService.getGlobalProperty("facility_datim_code");
-        System.out.println(datimCode);
         String facilityName = administrationService.getGlobalProperty("Facility_Name");
-        System.out.println(facilityName);
         AtomicInteger count = new AtomicInteger();
         patients.forEach(patient -> {
             System.out.println(count.getAndIncrement());
@@ -88,57 +96,76 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             container.setMessageData(buildMessageData(patient, datimCode));
             containers.add(container);
             if (containers.size() == 2) {
-                ContainerWrapper containerWrapper = new ContainerWrapper(containers);
-                String url = "http://localhost:8484/sync-containers";
-                OutputStreamWriter wr;
-                BufferedReader rd;
-                String response = "";
                 try {
-//                    HttpClient client = new HttpClient(url);
-////                    HttpPost
-//                    Map<String, String> params = new HashMap<>();
-//                    params.put("containers", new ObjectMapper().writeValueAsString(containerWrapper.getContainers()));
-//                    String resp = client.post(params);
-//                    System.out.println(resp);
-
-                    DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.sss");
-                    df.setTimeZone(TimeZone.getTimeZone("Africa/Lagos"));
-                    objectMapper.setDateFormat(df);
-                    String data = objectMapper.writeValueAsString(containerWrapper);
-
-                    HttpUrl httpUrl = new HttpUrl(url);
-                    HttpURLConnection connection = httpUrl.openConnection();
-                    connection.setDoOutput(true);
-                    connection.setDoInput(true);
-                    connection.setRequestMethod("POST");
-                    connection.setRequestProperty("Content-Length", String.valueOf(data.length()));
-                    connection.setRequestProperty("Content-Type", "application/json");
-                    wr = new OutputStreamWriter(connection.getOutputStream());
-                    wr.write(data);
-                    wr.flush();
-                    wr.close();
-
-                    String line;
-                    for(rd = new BufferedReader(new InputStreamReader(connection.getInputStream())); (line = rd.readLine()) != null; response = String.format("%s%s\n", response, line)) {
-                    }
-                    System.out.println(response);
+                    syncContainersToCdr(containers);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    System.out.println(e.getMessage());
                 }
-//                ResponseEntity<String> response = restTemplate.postForEntity(url, containerWrapper, String.class);
-//                if (response != null) {
-//                    String message = response.getBody();
-//                    System.out.println(message);
-//                }
+                containers.clear();
             }
         });
-        Date syncDate = new Date();
-        DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyy'T'HH:mm:ss");
-        dateFormat.setTimeZone(TimeZone.getTimeZone("Africa/Lagos"));
-        String syncDateString = dateFormat.format(syncDate);
-        GlobalProperty globalProperty = new GlobalProperty("Sync_Date", syncDateString, "Last sync date to CDR");
-        administrationService.saveGlobalProperty(globalProperty);
+        if (!containers.isEmpty()) {
+            syncContainersToCdr(containers);
+        }
+        saveLastSyncDate();
     }
+	
+	public void syncContainersToCdr(List<Container> containers) throws IOException {
+		ContainerWrapper containerWrapper = new ContainerWrapper(containers);
+		String url = "http://localhost:8484/sync-containers";
+		OutputStreamWriter wr = null;
+		BufferedReader rd = null;
+		String response = "";
+		try {
+			DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.sss");
+			//			df.setTimeZone(TimeZone.getTimeZone("Africa/Lagos"));
+			objectMapper.setDateFormat(df);
+			String data = objectMapper.writeValueAsString(containerWrapper);
+			
+			HttpUrl httpUrl = new HttpUrl(url);
+			HttpURLConnection connection = httpUrl.openConnection();
+			connection.setDoOutput(true);
+			connection.setDoInput(true);
+			connection.setRequestMethod("POST");
+			connection.setRequestProperty("Content-Length", String.valueOf(data.length()));
+			connection.setRequestProperty("Content-Type", "application/json");
+			wr = new OutputStreamWriter(connection.getOutputStream());
+			wr.write(data);
+			wr.flush();
+			wr.close();
+			
+			String line;
+			for (rd = new BufferedReader(new InputStreamReader(connection.getInputStream())); (line = rd.readLine()) != null; response = String
+			        .format("%s%s\n", response, line)) {}
+			System.out.println(response);
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		finally {
+			if (wr != null)
+				wr.close();
+			if (rd != null)
+				rd.close();
+		}
+	}
+	
+	private void saveLastSyncDate() {
+		System.out.println("Saving last sync date-----");
+		Date syncDate = new Date();
+		DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy");
+		String syncDateString = dateFormat.format(syncDate);
+		Calendar now = Calendar.getInstance();
+		
+		String today = now.get(Calendar.YEAR) + "-" + (now.get(Calendar.MONTH) + 1) + "-" + now.get(Calendar.DATE);
+		if (administrationService.getGlobalProperty("last.cdr.sync") == null) {
+			GlobalProperty globalProperty = new GlobalProperty("last.cdr.sync", syncDateString, "Last sync date to CDR");
+			administrationService.saveGlobalProperty(globalProperty);
+			//			administrationService.setGlobalProperty("last.cdr.sync", syncDateString);
+		} else {
+			administrationService.setGlobalProperty("last.cdr.sync", syncDateString);
+		}
+	}
 	
 	private MessageHeaderType buildMessageHeader(String datimCode, String facilityName) {
 		MessageHeaderType messageHeaderType = new MessageHeaderType();
@@ -157,7 +184,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		MessageDataType messageDataType = new MessageDataType();
 		messageDataType.setDemographics(buildDemographics(patient, datimCode));
 		messageDataType.setVisits(buildVisits(patient, datimCode));
-		//		messageDataType.setPatientBiometrics(buildPatientBiometrics(patient, datimCode));
+		messageDataType.setPatientBiometrics(buildPatientBiometrics(patient, datimCode));
 		messageDataType.setPatientPrograms(buildPatientProgram(patient));
 		messageDataType.setPatientIdentifiers(buildPatientIdentifier(patient));
 		messageDataType.setEncounters(buildEncounters(patient, datimCode));
@@ -243,7 +270,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	private List<PatientBiometricType> buildPatientBiometrics(Patient patient, String datimCode) {
         List<PatientBiometricType> patientBiometricTypes = new ArrayList<>();
-        List<BiometricInfo> biometricInfos = biometricInfoService.getBiometricInfoByPatient(patient);
+        List<BiometricInfo> biometricInfos = biometricInfoService.getBiometricInfoByPatientId(patient.getPatientId());
         if (biometricInfos != null && !biometricInfos.isEmpty()) {
             System.out.println("No of biometrics::"+biometricInfos.size());
             biometricInfos.forEach(biometricInfo -> {
@@ -262,9 +289,12 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                 patientBiometricType.setManufacturer(biometricInfo.getManufacturer());
                 patientBiometricType.setModel(biometricInfo.getModel());
                 patientBiometricType.setSerialNumber(biometricInfo.getSerialNumber());
-//                patientBiometricType.setTemplate(biometricInfo.getNewTemplate());
+                patientBiometricType.setTemplate(biometricInfo.getTemplate()); //todo convert blob to utf-8 format string
                 patientBiometricTypes.add(patientBiometricType);
             });
+        } else {
+            System.out.println(patientBiometricTypes);
+            System.out.println("No biometrics found");
         }
         return patientBiometricTypes;
     }
@@ -421,7 +451,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	private List<EncounterProviderType> buildEncounterProviders(Patient patient) {
         List<EncounterProviderType> encounterProviderTypes = new ArrayList<>();
-//        List<EncounterProvider> encounterProviders = Context.getProviderService().
+//        List<EncounterProvider> encounterProviders = Context.getProviderService(). todo confirm how to get encounter providers
         return encounterProviderTypes;
     }
 	
