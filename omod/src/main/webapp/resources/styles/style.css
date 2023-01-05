@@ -1,11 +1,15 @@
-.flex_container{
+.container-wrap {
+    alignment: center;
+    margin-top: 20px;
+}
+
+.flex-container {
     display: flex;
     justify-content: space-around;
     /*align-content: space-between;*/
 }
 
-.input_container{
+.input-container {
     display: flex;
     justify-content: space-around;
-    flex-direction: column;
 }

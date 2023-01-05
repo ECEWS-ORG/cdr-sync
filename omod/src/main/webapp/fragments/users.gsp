@@ -37,7 +37,7 @@
         jq("#sync").click(function(){
             console.log("I am clicked");
             jq.ajax({
-                url: "${ui.actionLink("getPatients")}",
+                url: "${ui.actionLink("getPatientsFromInitial")}",
                 dataType: "json"
             }).success(function (){
                 alert("I am clicked");

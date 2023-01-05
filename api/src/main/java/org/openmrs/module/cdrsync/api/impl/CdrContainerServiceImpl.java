@@ -1,5 +1,11 @@
 package org.openmrs.module.cdrsync.api.impl;
 
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.*;
 import org.openmrs.api.*;
@@ -7,6 +13,7 @@ import org.openmrs.api.context.Context;
 import org.openmrs.api.impl.BaseOpenmrsService;
 import org.openmrs.module.cdrsync.api.BiometricInfoService;
 import org.openmrs.module.cdrsync.api.CdrContainerService;
+import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
 import org.openmrs.module.cdrsync.api.CdrSyncEncounterService;
 import org.openmrs.module.cdrsync.container.model.EncounterType;
 import org.openmrs.module.cdrsync.container.model.PatientIdentifierType;
@@ -14,19 +21,14 @@ import org.openmrs.module.cdrsync.container.model.VisitType;
 import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
 import org.openmrs.module.cdrsync.model.ContainerWrapper;
-import org.openmrs.util.HttpUrl;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
-import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -49,7 +51,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	private final EncounterService encounterService = Context.getEncounterService();
 	
-	private final AdministrationService administrationService = Context.getAdministrationService();
+	private final CdrSyncAdminService administrationService = Context.getService(CdrSyncAdminService.class);
 	
 	private final BiometricInfoService biometricInfoService = Context.getService(BiometricInfoService.class);
 	
@@ -62,16 +64,16 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	private final static String SECRET = "IHVNPass1word";
 	
 	@Override
-	public void getAllPatients() throws IOException {
+	public String getAllPatients() throws IOException {
 		List<Patient> patients = patientService.getAllPatients(false);
 		System.out.println("Total no of patients:: " + patients.size());
 		List<Patient> newPatients = patients.subList(0, 2);
 		System.out.println("---------" + newPatients.size());
-		buildContainer(newPatients);
+		return buildContainer(newPatients);
 	}
 	
 	@Override
-    public void getPatientsByEncounterDateTime(Date from, Date to) throws IOException {
+	public String getPatientsByEncounterDateTime(Date from, Date to) throws IOException {
         List<Encounter> encounters = cdrSyncEncounterService.getEncountersByEncounterDateTime(from, to);
         if (encounters != null && !encounters.isEmpty()) {
             System.out.println("No of encounters since last sync::"+encounters.size());
@@ -80,20 +82,22 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                     .distinct()
                     .collect(Collectors.toList());
             System.out.println("No of patients that have encounters since last sync date::"+patientList.size());
-            buildContainer(patientList.subList(0,2));
+            return buildContainer(patientList.subList(0,2));
         }
-    }
+        return "No new encounter to sync";
+	}
 	
-	private void buildContainer(List<Patient> patients) throws IOException {
+	private String buildContainer(List<Patient> patients) throws IOException {
         List<Container> containers = new ArrayList<>();
-        String datimCode = administrationService.getGlobalProperty("facility_datim_code");
-        String facilityName = administrationService.getGlobalProperty("Facility_Name");
+        String datimCode = Context.getAdministrationService().getGlobalProperty("facility_datim_code");
+        String facilityName = Context.getAdministrationService().getGlobalProperty("Facility_Name");
         AtomicInteger count = new AtomicInteger();
         patients.forEach(patient -> {
             System.out.println(count.getAndIncrement());
             Container container = new Container();
             container.setMessageHeader(buildMessageHeader(datimCode, facilityName));
             container.setMessageData(buildMessageData(patient, datimCode));
+            container.setId(patient.getUuid());
             containers.add(container);
             if (containers.size() == 2) {
                 try {
@@ -107,64 +111,36 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         if (!containers.isEmpty()) {
             syncContainersToCdr(containers);
         }
-        saveLastSyncDate();
+//        saveLastSyncDate();
+        return "Syncing successful";
     }
 	
-	public void syncContainersToCdr(List<Container> containers) throws IOException {
+	private void syncContainersToCdr(List<Container> containers) throws IOException {
 		ContainerWrapper containerWrapper = new ContainerWrapper(containers);
 		String url = "http://localhost:8484/sync-containers";
-		OutputStreamWriter wr = null;
-		BufferedReader rd = null;
-		String response = "";
-		try {
-			DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.sss");
-			//			df.setTimeZone(TimeZone.getTimeZone("Africa/Lagos"));
-			objectMapper.setDateFormat(df);
-			String data = objectMapper.writeValueAsString(containerWrapper);
-			
-			HttpUrl httpUrl = new HttpUrl(url);
-			HttpURLConnection connection = httpUrl.openConnection();
-			connection.setDoOutput(true);
-			connection.setDoInput(true);
-			connection.setRequestMethod("POST");
-			connection.setRequestProperty("Content-Length", String.valueOf(data.length()));
-			connection.setRequestProperty("Content-Type", "application/json");
-			wr = new OutputStreamWriter(connection.getOutputStream());
-			wr.write(data);
-			wr.flush();
-			wr.close();
-			
-			String line;
-			for (rd = new BufferedReader(new InputStreamReader(connection.getInputStream())); (line = rd.readLine()) != null; response = String
-			        .format("%s%s\n", response, line)) {}
-			System.out.println(response);
-		}
-		catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-		finally {
-			if (wr != null)
-				wr.close();
-			if (rd != null)
-				rd.close();
-		}
-	}
+        try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()){
+            HttpPost post = new HttpPost(url);
+            post.setHeader("Content-Type", "application/json");
+            post.setEntity(new StringEntity(objectMapper.writeValueAsString(containerWrapper)));
+            try (CloseableHttpResponse response = httpClient.execute(post)){
+                int statusCode = response.getStatusLine().getStatusCode();
+                if (statusCode == 200) {
+                    String responseBody = EntityUtils.toString(response.getEntity());
+                    System.out.println("After successfully sending request::" + responseBody);
+                } else
+                    System.out.println("error sending request");
+            }
+        }
+    }
 	
-	private void saveLastSyncDate() {
+	@Override
+	public void saveLastSyncDate() {
 		System.out.println("Saving last sync date-----");
 		Date syncDate = new Date();
-		DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy");
+		DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
 		String syncDateString = dateFormat.format(syncDate);
-		Calendar now = Calendar.getInstance();
-		
-		String today = now.get(Calendar.YEAR) + "-" + (now.get(Calendar.MONTH) + 1) + "-" + now.get(Calendar.DATE);
-		if (administrationService.getGlobalProperty("last.cdr.sync") == null) {
-			GlobalProperty globalProperty = new GlobalProperty("last.cdr.sync", syncDateString, "Last sync date to CDR");
-			administrationService.saveGlobalProperty(globalProperty);
-			//			administrationService.setGlobalProperty("last.cdr.sync", syncDateString);
-		} else {
-			administrationService.setGlobalProperty("last.cdr.sync", syncDateString);
-		}
+		Context.getAdministrationService().updateGlobalProperty("last.cdr.sync", syncDateString);
+		//		administrationService.updateLastSyncGlobalProperty("last.cdr.sync", syncDateString);
 	}
 	
 	private MessageHeaderType buildMessageHeader(String datimCode, String facilityName) {

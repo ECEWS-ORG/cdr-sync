@@ -54,6 +54,11 @@
             <ref bean="dbSessionFactory" />
         </property>
     </bean>
+    <bean id="cdrSync.CdrSyncAdminDao" class="org.openmrs.module.cdrsync.api.dao.impl.CdrSyncAdminDaoImpl">
+        <property name="sessionFactory">
+            <ref bean="dbSessionFactory" />
+        </property>
+    </bean>
     <bean id="cdrsync.BiometricInfoService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
         <property name="transactionManager">
             <ref bean="transactionManager" />
@@ -77,6 +82,22 @@
         <property name="target">
             <bean class="org.openmrs.module.cdrsync.api.impl.CdrSyncEncounterServiceImpl">
                 <property name="dao" ref="cdrSync.CdrSyncEncounterDao" />
+            </bean>
+        </property>
+        <property name="preInterceptors">
+            <ref bean="serviceInterceptors" />
+        </property>
+        <property name="transactionAttributeSource">
+            <ref bean="transactionAttributeSource" />
+        </property>
+    </bean>
+    <bean id="cdrsync.CdrSyncAdminService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+        <property name="transactionManager">
+            <ref bean="transactionManager" />
+        </property>
+        <property name="target">
+            <bean class="org.openmrs.module.cdrsync.api.impl.CdrSyncAdminServiceImpl">
+                <property name="dao" ref="cdrSync.CdrSyncAdminDao" />
             </bean>
         </property>
         <property name="preInterceptors">
@@ -124,6 +145,14 @@
             <list>
                 <value>org.openmrs.module.cdrsync.api.CdrSyncEncounterService</value>
                 <ref bean="cdrsync.CdrSyncEncounterService" />
+            </list>
+        </property>
+    </bean>
+    <bean parent="serviceContext">
+        <property name="moduleService">
+            <list>
+                <value>org.openmrs.module.cdrsync.api.CdrSyncAdminService</value>
+                <ref bean="cdrsync.CdrSyncAdminService" />
             </list>
         </property>
     </bean>
