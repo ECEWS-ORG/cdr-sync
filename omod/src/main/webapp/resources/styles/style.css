@@ -5,11 +5,11 @@
 
 .flex-container {
     display: flex;
-    justify-content: space-around;
+    justify-content: space-evenly;
     /*align-content: space-between;*/
 }
 
 .input-container {
     display: flex;
-    justify-content: space-around;
+    justify-content: space-evenly;
 }

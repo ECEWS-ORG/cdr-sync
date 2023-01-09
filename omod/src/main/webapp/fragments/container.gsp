@@ -6,6 +6,7 @@
 %>
 <%= ui.resourceLinks() %>
 <div class="container-wrap">
+    <div id="loadingDiv"></div>
     <div class="flex-container">
         <div>
             <button id="initial" style="color: red"><b>Sync From Initial</b></button>
@@ -29,7 +30,7 @@
         </div>
         <br/>
         <div>
-            <button id="custom_sync" style="color: blue">Sync</button>
+            <button id="custom_sync" style="color: blue"><em><b>Sync</b></em></button>
         </div>
     </div>
 </div>

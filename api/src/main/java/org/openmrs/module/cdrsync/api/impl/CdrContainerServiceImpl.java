@@ -22,22 +22,16 @@ import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
 import org.openmrs.module.cdrsync.model.ContainerWrapper;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import static org.openmrs.module.cdrsync.utils.AppUtils.encrypt;
 
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
 	
@@ -59,21 +53,17 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	ObjectMapper objectMapper = new ObjectMapper();
 	
-	private static SecretKeySpec secretKey;
-	
-	private final static String SECRET = "IHVNPass1word";
-	
 	@Override
 	public String getAllPatients() throws IOException {
 		List<Patient> patients = patientService.getAllPatients(false);
 		System.out.println("Total no of patients:: " + patients.size());
-		List<Patient> newPatients = patients.subList(0, 2);
+		List<Patient> newPatients = patients.subList(0, 4);
 		System.out.println("---------" + newPatients.size());
 		return buildContainer(newPatients);
 	}
 	
 	@Override
-	public String getPatientsByEncounterDateTime(Date from, Date to) throws IOException {
+	public String getPatientsByEncounterDateTime(Date from, Date to) {
         List<Encounter> encounters = cdrSyncEncounterService.getEncountersByEncounterDateTime(from, to);
         if (encounters != null && !encounters.isEmpty()) {
             System.out.println("No of encounters since last sync::"+encounters.size());
@@ -81,37 +71,55 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                     .map(Encounter::getPatient)
                     .distinct()
                     .collect(Collectors.toList());
-            System.out.println("No of patients that have encounters since last sync date::"+patientList.size());
-            return buildContainer(patientList.subList(0,2));
+            System.out.println("No of patients that have encounters since last sync date::" + patientList.size());
+            return buildContainer(patientList.subList(0,4));
         }
         return "No new encounter to sync";
 	}
 	
-	private String buildContainer(List<Patient> patients) throws IOException {
+	private String buildContainer(List<Patient> patients) {
         List<Container> containers = new ArrayList<>();
         String datimCode = Context.getAdministrationService().getGlobalProperty("facility_datim_code");
         String facilityName = Context.getAdministrationService().getGlobalProperty("Facility_Name");
+        String resp = "";
         AtomicInteger count = new AtomicInteger();
-        patients.forEach(patient -> {
-            System.out.println(count.getAndIncrement());
-            Container container = new Container();
-            container.setMessageHeader(buildMessageHeader(datimCode, facilityName));
-            container.setMessageData(buildMessageData(patient, datimCode));
-            container.setId(patient.getUuid());
-            containers.add(container);
-            if (containers.size() == 2) {
-                try {
-                    syncContainersToCdr(containers);
-                } catch (IOException e) {
-                    System.out.println(e.getMessage());
+        try {
+            patients.forEach(patient -> {
+                System.out.println(count.getAndIncrement());
+                Container container = new Container();
+                container.setMessageHeader(buildMessageHeader(datimCode, facilityName));
+                container.setMessageData(buildMessageData(patient, datimCode));
+                container.setId(patient.getUuid());
+//                container.getMessageHeader().setTouchTime();
+                containers.add(container);
+                if (containers.size() == 2) {
+                    try {
+                        syncContainersToCdr(containers);
+                        containers.clear();
+                    } catch (IOException e) {
+                        containers.clear();
+                        throw new RuntimeException(e);
+                    }
+
                 }
-                containers.clear();
-            }
-        });
-        if (!containers.isEmpty()) {
-            syncContainersToCdr(containers);
+            });
+        } catch (RuntimeException e) {
+            System.out.println(e.getMessage());
+            resp = "Can't sync at the moment, try again later!";
         }
-//        saveLastSyncDate();
+        if (resp.equals("Can't sync at the moment, try again later!")) {
+            return resp;
+        }
+        if (!containers.isEmpty()) {
+            try {
+                syncContainersToCdr(containers);
+                containers.clear();
+            } catch (IOException e) {
+                containers.clear();
+                resp = "Incomplete syncing, try again later!";
+                return resp;
+            }
+        }
         return "Syncing successful";
     }
 	
@@ -314,7 +322,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         List<PatientIdentifierType> patientIdentifierTypes = new ArrayList<>();
         List<PatientIdentifier> patientIdentifiers = patient.getActiveIdentifiers();
         if (patientIdentifiers != null && !patientIdentifiers.isEmpty()) {
-            System.out.println("No of patient identifiers::"+patientIdentifiers.size());
+            System.out.println("No of patient identifiers::" + patientIdentifiers.size());
             patientIdentifiers.forEach(patientIdentifier -> {
                 PatientIdentifierType patientIdentifierType = new PatientIdentifierType();
                 patientIdentifierType.setPatientIdentifierId(patientIdentifier.getPatientIdentifierId());
@@ -406,13 +414,13 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                         BigDecimal.valueOf(obs.getValueNumeric()) : null);
                 if (confidentialConcepts.contains(obsType.getConceptId())) {
                     obsType.setValueText(encrypt(obs.getValueText() != null ? obs.getValueText() : ""));
-//                obsType.setVariableValue(obs.getValueCoded().g);
+//                obsType.setVariableValue(obs.getValueCoded().g); todo
                 } else {
                     obsType.setValueText(obs.getValueText());
                 }
                 obsType.setCreator(obs.getCreator() != null ? obs.getCreator().getId() : 0);
                 obsType.setDateCreated(obs.getDateCreated());
-//            obsType.setVariableName(obs.getConcept().getName().getName());
+//            obsType.setVariableName(obs.getConcept().getName().getName()); todo
                 obsType.setDatatype(obs.getConcept() != null ?
                         obs.getConcept().getDatatype().getConceptDatatypeId() : 0);
                 obsType.setLocationId(obs.getLocation() != null ? obs.getLocation().getLocationId() : 0);
@@ -429,51 +437,5 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         List<EncounterProviderType> encounterProviderTypes = new ArrayList<>();
 //        List<EncounterProvider> encounterProviders = Context.getProviderService(). todo confirm how to get encounter providers
         return encounterProviderTypes;
-    }
-	
-	public static void setKey(String myKey) {
-		MessageDigest sha;
-		try {
-			byte[] key = myKey.getBytes(StandardCharsets.UTF_8);
-			sha = MessageDigest.getInstance("SHA-1");
-			key = sha.digest(key);
-			key = Arrays.copyOf(key, 16);
-			secretKey = new SecretKeySpec(key, "AES");
-		}
-		catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		}
-	}
-	
-	public static String encrypt(String strToEncrypt) {
-        try
-        {
-            setKey(SECRET);
-            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey);
-            return Base64.getEncoder().encodeToString(cipher.doFinal(strToEncrypt.getBytes(StandardCharsets.UTF_8)));
-        }
-        catch (InvalidKeyException | NoSuchAlgorithmException | BadPaddingException |
-               IllegalBlockSizeException | NoSuchPaddingException e)
-        {
-            System.out.println("Error while encrypting: " + e.toString());
-        }
-        return null;
-    }
-	
-	public static String decrypt(String strToDecrypt) {
-        try
-        {
-            setKey(SECRET);
-            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5PADDING");
-            cipher.init(Cipher.DECRYPT_MODE, secretKey);
-            return new String(cipher.doFinal(Base64.getDecoder().decode(strToDecrypt)));
-        }
-        catch (InvalidKeyException | NoSuchAlgorithmException | BadPaddingException |
-               IllegalBlockSizeException | NoSuchPaddingException e)
-        {
-            System.out.println("Error while decrypting: " + e.getMessage());
-        }
-        return null;
     }
 }
