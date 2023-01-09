@@ -1,5 +1,6 @@
 package org.openmrs.module.cdrsync.utils;
 
+import org.openmrs.api.context.Context;
 import org.openmrs.module.cdrsync.api.impl.CdrContainerServiceImpl;
 
 import javax.crypto.BadPaddingException;
@@ -18,7 +19,7 @@ public class AppUtils {
 	
 	private static SecretKeySpec secretKey;
 	
-	private final static String SECRET = "IHVNPass1word";
+	private final static String SECRET = Context.getRuntimeProperties().getProperty("secret");
 	
 	private static void setKey() {
 		MessageDigest sha;

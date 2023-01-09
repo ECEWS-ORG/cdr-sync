@@ -27,6 +27,8 @@ import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -54,7 +56,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	ObjectMapper objectMapper = new ObjectMapper();
 	
 	@Override
-	public String getAllPatients() throws IOException {
+	public String getAllPatients() {
 		List<Patient> patients = patientService.getAllPatients(false);
 		System.out.println("Total no of patients:: " + patients.size());
 		List<Patient> newPatients = patients.subList(0, 4);
@@ -83,8 +85,28 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         String facilityName = Context.getAdministrationService().getGlobalProperty("Facility_Name");
         String resp = "";
         AtomicInteger count = new AtomicInteger();
+        Executor executor = Executors.newFixedThreadPool(2);
         try {
             patients.forEach(patient -> {
+//                executor.execute(()-> {
+//                    System.out.println(count.getAndIncrement());
+//                    Container container = new Container();
+//                    container.setMessageHeader(buildMessageHeader(datimCode, facilityName));
+//                    container.setMessageData(buildMessageData(patient, datimCode));
+//                    container.setId(patient.getUuid());
+////                container.getMessageHeader().setTouchTime();
+//                    containers.add(container);
+//                    if (containers.size() == 2) {
+//                        try {
+//                            syncContainersToCdr(containers);
+//                            containers.clear();
+//                        } catch (IOException e) {
+//                            containers.clear();
+//                            throw new RuntimeException(e);
+//                        }
+//
+//                    }
+//                });
                 System.out.println(count.getAndIncrement());
                 Container container = new Container();
                 container.setMessageHeader(buildMessageHeader(datimCode, facilityName));
@@ -125,7 +147,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	private void syncContainersToCdr(List<Container> containers) throws IOException {
 		ContainerWrapper containerWrapper = new ContainerWrapper(containers);
-		String url = "http://localhost:8484/sync-containers";
+		String url = Context.getRuntimeProperties().getProperty("cdr.url");
         try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()){
             HttpPost post = new HttpPost(url);
             post.setHeader("Content-Type", "application/json");
