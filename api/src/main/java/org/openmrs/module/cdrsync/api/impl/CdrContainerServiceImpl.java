@@ -21,6 +21,7 @@ import org.openmrs.module.cdrsync.container.model.VisitType;
 import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
 import org.openmrs.module.cdrsync.model.ContainerWrapper;
+import org.openmrs.util.Security;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -30,10 +31,7 @@ import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
-import static org.openmrs.module.cdrsync.utils.AppUtils.encrypt;
 
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
 	
@@ -147,7 +145,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	private void syncContainersToCdr(List<Container> containers) throws IOException {
 		ContainerWrapper containerWrapper = new ContainerWrapper(containers);
-		String url = Context.getRuntimeProperties().getProperty("cdr.url");
+		String url = Context.getRuntimeProperties().getProperty("cdr.sync.url");
         try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()){
             HttpPost post = new HttpPost(url);
             post.setHeader("Content-Type", "application/json");
@@ -169,7 +167,11 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		Date syncDate = new Date();
 		DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
 		String syncDateString = dateFormat.format(syncDate);
-		Context.getAdministrationService().updateGlobalProperty("last.cdr.sync", syncDateString);
+		if (Context.getAdministrationService().getGlobalProperty("last.cdr.sync") == null) {
+			GlobalProperty globalProperty = new GlobalProperty("last.cdr.sync", syncDateString, "Last sync date to CDR");
+			Context.getAdministrationService().saveGlobalProperty(globalProperty);
+		} else
+			Context.getAdministrationService().updateGlobalProperty("last.cdr.sync", syncDateString);
 		//		administrationService.updateLastSyncGlobalProperty("last.cdr.sync", syncDateString);
 	}
 	
@@ -203,10 +205,10 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		DemographicsType demographicsType = new DemographicsType();
 		PersonAddress personAddress = patient.getPersonAddress();
 		if (personAddress.getAddress1() != null && !personAddress.getAddress1().isEmpty()) {
-			demographicsType.setAddress1(encrypt(personAddress.getAddress1()));
+			demographicsType.setAddress1(Security.encrypt(personAddress.getAddress1()));
 		}
 		if (personAddress.getAddress2() != null && !personAddress.getAddress2().isEmpty()) {
-			demographicsType.setAddress2(encrypt(personAddress.getAddress2()));
+			demographicsType.setAddress2(Security.encrypt(personAddress.getAddress2()));
 		}
 		demographicsType.setCityVillage(personAddress.getCityVillage());
 		demographicsType.setStateProvince(personAddress.getStateProvince());
@@ -231,11 +233,11 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		demographicsType.setDead(patient.getDead() ? 1 : 0);
 		//        if (patient.get)
 		//        demographicsType.setCauseOfDeath(patient.getCauseOfDeath().); todo confirm how to get cause of death
-		demographicsType.setFirstName(encrypt(patient.getGivenName() != null ? patient.getGivenName() : ""));
-		demographicsType.setLastName(encrypt(patient.getFamilyName() != null ? patient.getFamilyName() : ""));
-		demographicsType.setMiddleName(encrypt(patient.getMiddleName() != null ? patient.getMiddleName() : ""));
+		demographicsType.setFirstName(Security.encrypt(patient.getGivenName() != null ? patient.getGivenName() : ""));
+		demographicsType.setLastName(Security.encrypt(patient.getFamilyName() != null ? patient.getFamilyName() : ""));
+		demographicsType.setMiddleName(Security.encrypt(patient.getMiddleName() != null ? patient.getMiddleName() : ""));
 		PersonAttribute personAttribute = patient.getAttribute(8);
-		demographicsType.setPhoneNumber(encrypt(personAttribute != null ? personAttribute.getValue() : ""));
+		demographicsType.setPhoneNumber(Security.encrypt(personAttribute != null ? personAttribute.getValue() : ""));
 		demographicsType.setGender(patient.getGender());
 		demographicsType.setPatientUuid(patient.getUuid());
 		demographicsType.setPatientId(patient.getPersonId());
@@ -435,7 +437,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                 obsType.setValueNumeric(obs.getValueNumeric() != null ?
                         BigDecimal.valueOf(obs.getValueNumeric()) : null);
                 if (confidentialConcepts.contains(obsType.getConceptId())) {
-                    obsType.setValueText(encrypt(obs.getValueText() != null ? obs.getValueText() : ""));
+                    obsType.setValueText(Security.encrypt(obs.getValueText() != null ? obs.getValueText() : ""));
 //                obsType.setVariableValue(obs.getValueCoded().g); todo
                 } else {
                     obsType.setValueText(obs.getValueText());
