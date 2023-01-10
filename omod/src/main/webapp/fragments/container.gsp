@@ -2,11 +2,14 @@
     ui.includeJavascript("cdrsync", "jquery.js")
     ui.includeCss("cdrsync", "style.css")
 
-    def id = config.id
 %>
 <%= ui.resourceLinks() %>
+<div id="overlay">
+    <div class="cv-spinner">
+        <span class="spinner"></span>
+    </div>
+</div>
 <div class="container-wrap">
-    <div id="loadingDiv"></div>
     <div class="flex-container">
         <div>
             <button id="initial" style="color: red"><b>Sync From Initial</b></button>
@@ -19,13 +22,17 @@
         </div>
     </div>
     <br/>
-    <b/>
+    <br/>
     <div class="input-container" id="custom_date">
         <div>
+            <label for="start"><b>Start Date</b></label>
+            <br/>
             <input type="date" id="start" name="startDate"/>
         </div>
 
         <div>
+            <label for="end"><b>End Date</b></label>
+            <br/>
             <input type="date" id="end" name="endDate"/>
         </div>
         <br/>
@@ -38,6 +45,13 @@
 
 <script type="text/javascript">
     var jq = jQuery;
+    jq(document).ajaxSend(function() {
+        jq("#overlay").fadeIn(300);
+    }).ajaxComplete(function (){
+        setTimeout(function(){
+            jq("#overlay").fadeOut(300);
+        },500);
+    });
     jq("#custom_date").hide();
 
     jq("#initial").click(function(){
@@ -113,6 +127,7 @@
     }
 
     function saveSyncDate() {
+        alert("Saving last sync")
         jq.ajax({
             url: "${ui.actionLink("saveLastSync")}",
             dataType: "json"
