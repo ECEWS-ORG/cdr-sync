@@ -45,6 +45,8 @@
 
 <script type="text/javascript">
     var jq = jQuery;
+    jq("#custom_date").hide();
+
     jq(document).ajaxSend(function() {
         jq("#overlay").fadeIn(300);
     }).ajaxComplete(function (){
@@ -52,25 +54,20 @@
             jq("#overlay").fadeOut(300);
         },500);
     });
-    jq("#custom_date").hide();
 
     jq("#initial").click(function(){
-        console.log("I am clicked");
-        alert("I am clicked");
+        alert("Syncing from inception");
         syncInitial().then(data => {
-            console.log(data);
             if(data === "Syncing successful") {
                 saveSyncDate();
             }
             alert(data);
-        }, error => alert(error));
+        }, error => alert(error.message));
     });
 
     jq("#update").click(function(){
-        console.log("I am clicked");
-        alert("I am clicked");
+        alert("Syncing from last sync date");
         syncUpdate().then(data => {
-            console.log(data);
             if(data === "Syncing successful") {
                 saveSyncDate();
             }
@@ -88,9 +85,8 @@
             } else if (endDate === "") {
                 alert("Please choose an end date");
             } else {
-                alert(startDate +"   " + endDate);
+                alert("Syncing patients from " + startDate + " to " + endDate);
                 syncCustom(startDate, endDate).then(data => {
-                    console.log(data);
                     if(data === "Syncing successful") {
                         saveSyncDate();
                     }
@@ -115,7 +111,6 @@
     }
 
     function syncCustom(from, to) {
-        alert("here")
         return Promise.resolve(jq.ajax({
             url: "${ui.actionLink("getPatientsFromCustomDate")}",
             dataType: "json",
