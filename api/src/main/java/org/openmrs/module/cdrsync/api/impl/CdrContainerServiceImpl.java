@@ -125,9 +125,10 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             });
         } catch (RuntimeException e) {
             System.out.println(e.getMessage());
-            resp = "Can't sync at the moment, try again later!";
+//            resp = "Can't sync at the moment, try again later!";
+            resp = "There's a problem connecting to the server. Please, check your connection and try again.";
         }
-        if (resp.equals("Can't sync at the moment, try again later!")) {
+        if (resp.equals("There's a problem connecting to the server. Please, check your connection and try again.")) {
             return resp;
         }
         if (!containers.isEmpty()) {

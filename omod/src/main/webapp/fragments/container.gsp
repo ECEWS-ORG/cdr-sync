@@ -10,6 +10,8 @@
     </div>
 </div>
 <div class="container-wrap">
+    <h3>Last Sync Date: <%= lastSyncDate %></h3>
+    <p id="message"></p>
     <div class="flex-container">
         <div>
             <button id="initial" style="color: red"><b>Sync From Initial</b></button>
@@ -61,7 +63,8 @@
             if(data === "Syncing successful") {
                 saveSyncDate();
             }
-            alert(data);
+            // alert(data);
+            jq('#message').load("<span>"+data+"</span>");
         }, error => alert(error.message));
     });
 

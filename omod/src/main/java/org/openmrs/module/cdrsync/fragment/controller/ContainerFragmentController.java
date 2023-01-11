@@ -21,7 +21,10 @@ public class ContainerFragmentController {
 	//	CdrContainerService containerService = Context.getService(CdrContainerService.class);
 	
 	public void controller(FragmentModel model, @SpringBean("userService") UserService service) {
+		String lastSyncDate = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
+		
 		model.addAttribute("users", service.getAllUsers());
+		model.addAttribute("lastSyncDate", lastSyncDate);
 	}
 	
 	public String getPatientsFromInitial() throws IOException {
