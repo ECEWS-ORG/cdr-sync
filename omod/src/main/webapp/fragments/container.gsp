@@ -10,9 +10,9 @@
     </div>
 </div>
 <div class="container-wrap">
-    <h3>Last Sync Date: <%= lastSyncDate %></h3>
-    <p id="message"></p>
     <div class="flex-container">
+        <h3>Last Sync Date: <%= lastSyncDate %></h3>
+        <div id="message"></div>
         <div>
             <button id="initial" style="color: red"><b>Sync From Initial</b></button>
         </div>
@@ -64,7 +64,7 @@
                 saveSyncDate();
             }
             // alert(data);
-            jq('#message').load("<span>"+data+"</span>");
+            jq('#message').html("<p>"+data+"</p>");
         }, error => alert(error.message));
     });
 
@@ -74,7 +74,8 @@
             if(data === "Syncing successful") {
                 saveSyncDate();
             }
-            alert(data);
+            // alert(data);
+            jq('#message').html("<p>"+data+"</p>");
         }, error => alert(error));
     });
 
@@ -93,7 +94,8 @@
                     if(data === "Syncing successful") {
                         saveSyncDate();
                     }
-                    alert(data);
+                    // alert(data);
+                    jq('#message').html("<p>"+data+"</p>");
                 }, error => alert(error));
             }
         });
