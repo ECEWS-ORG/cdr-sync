@@ -10,9 +10,9 @@
     </div>
 </div>
 <div class="container-wrap">
+    <h3>Last Sync Date: <%= lastSyncDate %></h3>
+    <div id="message"></div>
     <div class="flex-container">
-        <h3>Last Sync Date: <%= lastSyncDate %></h3>
-        <div id="message"></div>
         <div>
             <button id="initial" style="color: red"><b>Sync From Initial</b></button>
         </div>
@@ -59,24 +59,25 @@
 
     jq("#initial").click(function(){
         alert("Syncing from inception");
-        syncInitial().then(data => {
-            if(data === "Syncing successful") {
+        syncInitial().then(resp => {
+            if(resp.body === "Sync successful!") {
                 saveSyncDate();
             }
             // alert(data);
-            jq('#message').html("<p>"+data+"</p>");
-        }, error => alert(error.message));
+            jq('#message').html("<p>"+resp.body+"</p>");
+        }, error => console.log(error));
     });
 
     jq("#update").click(function(){
         alert("Syncing from last sync date");
-        syncUpdate().then(data => {
-            if(data === "Syncing successful") {
+        syncUpdate().then(resp => {
+            console.log(resp);
+            if(resp.body === "Sync successful!") {
                 saveSyncDate();
             }
             // alert(data);
-            jq('#message').html("<p>"+data+"</p>");
-        }, error => alert(error));
+            jq('#message').html("<p>"+resp.body+"</p>");
+        }, error => console.log(error));
     });
 
     jq("#custom").click(function (){
@@ -90,13 +91,13 @@
                 alert("Please choose an end date");
             } else {
                 alert("Syncing patients from " + startDate + " to " + endDate);
-                syncCustom(startDate, endDate).then(data => {
-                    if(data === "Syncing successful") {
+                syncCustom(startDate, endDate).then(resp => {
+                    if(resp.body === "Sync successful!") {
                         saveSyncDate();
                     }
                     // alert(data);
-                    jq('#message').html("<p>"+data+"</p>");
-                }, error => alert(error));
+                    jq('#message').html("<p>"+resp.body+"</p>");
+                }, error => console.log(error));
             }
         });
     });
