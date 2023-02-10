@@ -27,6 +27,10 @@ public class MessageHeaderType implements Serializable {
 	
 	private String facilityName;
 	
+	private String facilityLga;
+	
+	private String facilityState;
+	
 	private String fileName;
 	
 	private Date uploadDate;
@@ -93,6 +97,22 @@ public class MessageHeaderType implements Serializable {
 	
 	public void setFacilityName(String facilityName) {
 		this.facilityName = facilityName;
+	}
+	
+	public String getFacilityLga() {
+		return facilityLga;
+	}
+	
+	public void setFacilityLga(String facilityLga) {
+		this.facilityLga = facilityLga;
+	}
+	
+	public String getFacilityState() {
+		return facilityState;
+	}
+	
+	public void setFacilityState(String facilityState) {
+		this.facilityState = facilityState;
 	}
 	
 	public String getFileName() {

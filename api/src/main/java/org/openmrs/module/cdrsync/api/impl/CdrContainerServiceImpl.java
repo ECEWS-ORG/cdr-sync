@@ -1,5 +1,6 @@
 package org.openmrs.module.cdrsync.api.impl;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
@@ -18,16 +19,24 @@ import org.openmrs.module.cdrsync.container.model.VisitType;
 import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
 import org.openmrs.module.cdrsync.model.ContainerWrapper;
+import org.openmrs.module.cdrsync.model.DatimMap;
 import org.openmrs.module.cdrsync.model.EncryptedBody;
 import org.openmrs.util.Security;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
 	
@@ -45,108 +54,155 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	private final CdrSyncEncounterService cdrSyncEncounterService = Context.getService(CdrSyncEncounterService.class);
 	
-	private final String datimCode = Context.getAdministrationService().getGlobalProperty("facility_datim_code");
+	private static final String datimCode = Context.getAdministrationService().getGlobalProperty("facility_datim_code");
 	
 	private final String facilityName = Context.getAdministrationService().getGlobalProperty("Facility_Name");
 	
 	private final User user = Context.getAuthenticatedUser();
 	
-	ObjectMapper objectMapper = new ObjectMapper();
+	private final String partnerShortName = Context.getAdministrationService().getGlobalProperty("partner_short_name");
 	
-	@Override
-	public String getAllPatients() {
-		String query = "SELECT p FROM Patient p";
-		List<Patient> patients = patientService.getPatients("", true, null, 1000);
-		//		List<Patient> patients = patientService.getAllPatients(true);
-		System.out.println("Total no of patients:: " + patients.size());
-		//		List<Patient> newPatients = new ArrayList<>(patients.subList(0, 20));
-		//		System.out.println("---------" + newPatients.size());
-		//		patients.clear();
-		return buildContainer(patients);
+	private static final ObjectMapper objectMapper = new ObjectMapper();
+	
+	private static final String operatingSystem = System.getProperty("os.name").toLowerCase();
+	
+	private static final String desktopPath;
+	
+	private static final String folderName = "Sync Module Folder";
+	
+	private static final String folderPath;
+	
+	private static final DatimMap datimMap;
+	
+	static {
+		if (operatingSystem.contains("windows")) {
+			desktopPath = System.getenv("USERPROFILE") + "\\Desktop\\";
+		} else {
+			desktopPath = System.getProperty("user.home") + "/Desktop/";
+		}
+		folderPath = desktopPath + folderName;
+		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		objectMapper.setDateFormat(df);
+		
+		datimMap = Context.getService(CdrSyncPatientService.class).getDatimMapByDatimCode(datimCode);
 	}
 	
 	@Override
-	public String getAllPatients(Date startDate, Date endDate) {
-		String query = "SELECT * FROM Patient p";
-		List<Patient> patients = patientService.getPatients(query, true, 16502, 1000);
-		//		List<Patient> patients = patientService.getAllPatients(true);
-		System.out.println("Total no of patients:: " + patients.size());
-		//		List<Patient> newPatients = new ArrayList<>(patients.subList(0, 20));
-		//		System.out.println("---------" + newPatients.size());
-		//		patients.clear();
-		return buildContainer(patients, startDate, endDate);
+	public String getAllPatients(Long patientCount, int start, int length) {
+		String result;
+		System.out.println("Total no of patients:: " + patientCount);
+		if (start < patientCount) {
+			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientIds(start, length, true);
+			System.out.println("Total no of patients processing:: " + patients.size());
+			result = buildContainer(patients);
+			return result;
+		} else {
+			return zipFolder();
+		}
 	}
 	
 	@Override
-	public String getPatientsByEncounterDateTime(Date from, Date to) {
-        List<Encounter> encounters = cdrSyncEncounterService.getEncountersByEncounterDateTime(from, to);
-        if (encounters != null && !encounters.isEmpty()) {
-            System.out.println("No of encounters since last sync::"+encounters.size());
-            List<Patient> patientList = encounters.stream()
-                    .map(Encounter::getPatient)
-                    .distinct()
-                    .collect(Collectors.toList());
-            System.out.println("No of patients that have encounters since last sync date::" + patientList.size());
-            return buildContainer(patientList.subList(0,4));
-        }
-        return "No new encounter to sync";
+	public String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length) {
+		String result;
+		if (start < patientCount) {
+			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientsByLastSyncDate(startDate,
+			    endDate, null, true, start, length);
+			//			result = buildContainer(patients, startDate, endDate);
+			result = buildContainer(patients);
+			return result;
+		} else {
+			return zipFolder();
+		}
 	}
 	
-	private String buildContainer(List<Patient> patients, Date from, Date to) {
-        List<Container> containers = new ArrayList<>();
-        String resp = "";
-        AtomicInteger count = new AtomicInteger();
-        try {
-            patients.forEach(patient ->
-                    createContainerFromLastSyncDate(containers, count, patient, from, to));
-        } catch (RuntimeException e) {
-            System.out.println(e.getMessage());
-            e.printStackTrace();
-            resp = "There's a problem connecting to the server. Please, check your connection and try again.";
-            return resp;
-        }
-        if (!containers.isEmpty()) {
-            try {
-                syncContainersToCdr(containers);
-                containers.clear();
-                resp = "Sync successful!";
-            } catch (IOException e) {
-                System.out.println(e.getMessage());
-                e.printStackTrace();
-                resp = "Can't sync at the moment, try again later!";
-            }
-        } else
-            resp = "Sync successful!";
-        return resp;
-    }
+	private String zipFolder() {
+		File folder = new File(folderPath);
+		File dir = new File(folder, "jsonFiles");
+		if (dir.listFiles() != null) {
+			ZipOutputStream zipOutputStream;
+			try {
+				zipOutputStream = new ZipOutputStream(Files.newOutputStream(Paths.get(folder.getAbsolutePath(),
+				    partnerShortName + "_" + datimCode + "_" + facilityName + "_" + new Date().getTime() + ".zip")));
+				zipDirectory(dir, dir.getName(), zipOutputStream);
+				zipOutputStream.close();
+				FileUtils.deleteDirectory(dir);
+				saveLastSyncDate();
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		return "Sync complete!";
+	}
 	
-	private String buildContainer(List<Patient> patients) {
+	private String buildContainer(List<Integer> patients, Date from, Date to) {
         List<Container> containers = new ArrayList<>();
         String resp;
         AtomicInteger count = new AtomicInteger();
         try {
-            patients.forEach(patient -> createContainer(containers, count, patient));
+            patients.forEach(patient ->
+			{
+				try {
+					createContainerFromLastSyncDate(containers, count, patient, from, to);
+				} catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+			});
         } catch (RuntimeException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
             resp = "There's a problem connecting to the server. Please, check your connection and try again.";
             return resp;
         }
-        if (!containers.isEmpty()) {
-            try {
-                syncContainersToCdr(containers);
-                containers.clear();
-                resp = "Sync successful!";
-            } catch (IOException e) {
-                containers.clear();
-                resp = "Incomplete syncing, try again later!";
-            }
-        } else
+//        if (!containers.isEmpty()) {
+//            try {
+//                syncContainersToCdr(containers);
+//                containers.clear();
+//                resp = "Sync successful!";
+//            } catch (IOException e) {
+//                System.out.println(e.getMessage());
+//                e.printStackTrace();
+//                resp = "Incomplete syncing, try again later!";
+//            }
+//        } else
             resp = "Sync successful!";
         return resp;
     }
 	
-	private void createContainer(List<Container> containers, AtomicInteger count, Patient patient) {
+	private String buildContainer(List<Integer> patientIds) {
+		List<Container> containers = new ArrayList<>();
+		String resp;
+		AtomicInteger count = new AtomicInteger();
+		try {
+			patientIds.forEach(patient -> {
+				try {
+					createContainer(containers, count, patient);
+				} catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+			});
+		} catch (RuntimeException e) {
+			System.out.println(e.getMessage());
+			e.printStackTrace();
+			resp = "There's a problem connecting to the server. Please, check your connection and try again.";
+			return resp;
+		}
+//		if (!containers.isEmpty()) {
+//			try {
+//				syncContainersToCdr(containers);
+//				containers.clear();
+//				resp = "Sync successful!";
+//			} catch (IOException e) {
+//				containers.clear();
+//				resp = "Incomplete syncing, try again later!";
+//			}
+//		} else
+			resp = "Sync successful!";
+		return resp;
+	}
+	
+	private void createContainer(List<Container> containers, AtomicInteger count, Integer patientId) throws IOException {
+		Patient patient = patientService.getPatient(patientId);
 		System.out.println(count.getAndIncrement());
 		Container container = new Container();
 		Date[] touchTimeDate = new Date[1];
@@ -156,42 +212,95 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container);
 	}
 	
-	private void createContainerFromLastSyncDate(List<Container> containers, AtomicInteger count, Patient patient,
-	        Date from, Date to) {
+	private void createContainerFromLastSyncDate(List<Container> containers, AtomicInteger count, Integer patientId,
+	        Date from, Date to) throws IOException {
 		System.out.println(count.getAndIncrement());
+		Patient patient = patientService.getPatient(patientId);
 		Date[] touchTimeDate = new Date[1];
-		touchTimeDate[0] = patient.getDateChanged() != null ? patient.getDateChanged() : patient.getDateCreated(); // todo handle touch time for patient efficiently
+		touchTimeDate[0] = patient.getDateChanged() != null ? patient.getDateChanged() : patient.getDateCreated();
 		Container container = new Container();
 		boolean[] hasUpdate = new boolean[1];
 		container.setMessageData(buildMessageDataFromLastSync(patient, hasUpdate, touchTimeDate, from, to));
-		if (hasUpdate[0]) {
-			container.setMessageHeader(buildMessageHeader());
-			setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container);
-		}
+		//		if (hasUpdate[0]) {
+		container.setMessageHeader(buildMessageHeader());
+		setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container);
+		//		}
 	}
 	
 	private void setContainerTouchTimeAndFileName(List<Container> containers, Patient patient, Date[] touchTimes,
-	        Container container) {
+	        Container container) throws IOException {
 		container.setId(patient.getUuid());
 		container.getMessageHeader().setTouchTime(touchTimes[0]);
 		SimpleDateFormat df = new SimpleDateFormat("yyyyMMddHHmmss");
 		String touchTimeString = df.format(container.getMessageHeader().getTouchTime());
-		String fileName = patient.getUuid() + "_" + touchTimeString + "_" + datimCode;
+		String fileName = patient.getUuid() + "_" + touchTimeString + "_" + datimCode + ".json";
 		container.getMessageHeader().setFileName(fileName);
-		containers.add(container);
-		if (containers.size() == 10) {
+		
+		writeContainerToFile(container, fileName);
+		
+		//		containers.add(container);
+		//		if (containers.size() == 50) {
+		//			try {
+		//				syncContainersToCdr(containers);
+		//				containers.clear();
+		//			}
+		//			catch (IOException e) {
+		//				containers.clear();
+		//				throw new RuntimeException(e);
+		//			}
+		//
+		//		}
+	}
+	
+	private void writeContainerToFile(Container container, String fileName) throws IOException {
+		
+		File folder = new File(folderPath);
+		
+		File dir = new File(folder, "jsonFiles");
+		if (!dir.exists() && !dir.mkdirs()) {
+			throw new RuntimeException("Unable to create directory " + dir.getAbsolutePath());
+		}
+		String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(container);
+		File file = new File(dir, fileName);
+		FileUtils.writeStringToFile(file, json, "UTF-8");
+		
+		if (dir.listFiles() != null && Objects.requireNonNull(dir.listFiles()).length == 10000) {
 			try {
-				syncContainersToCdr(containers);
-				containers.clear();
+				ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(Paths.get(folder.getAbsolutePath(),
+				    partnerShortName + "_" + datimCode + "_" + facilityName + "_" + new Date().getTime() + ".zip")));
+				zipDirectory(dir, dir.getName(), zos);
+				zos.close();
+				FileUtils.cleanDirectory(dir);
 			}
 			catch (IOException e) {
-				containers.clear();
-				throw new RuntimeException(e);
+				e.printStackTrace();
 			}
 			
 		}
 	}
 	
+	private void zipDirectory(File directory, String baseName, ZipOutputStream zos) throws IOException {
+		File[] files = directory.listFiles();
+		if (files != null) {
+			byte[] buffer = new byte[1024];
+			for (File file : files) {
+				if (file.isDirectory()) {
+					String name = baseName + "/" + file.getName();
+					zipDirectory(file, name, zos);
+				} else {
+					FileInputStream fis = new FileInputStream(file);
+					zos.putNextEntry(new ZipEntry(baseName + "/" + file.getName()));
+					int length;
+					while ((length = fis.read(buffer)) > 0) {
+						zos.write(buffer, 0, length);
+					}
+					zos.closeEntry();
+					fis.close();
+				}
+			}
+		}
+	}
+
 	private void syncContainersToCdr(List<Container> containers) throws IOException {
 		ContainerWrapper containerWrapper = new ContainerWrapper(containers);
         if (Context.getRuntimeProperties().getProperty("cdr.sync.url") == null) {
@@ -233,10 +342,25 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 			Context.getAdministrationService().updateGlobalProperty("last.cdr.sync", syncDateString);
 	}
 	
+	@Override
+	public long getPatientsCount(boolean includeVoided) {
+		return Context.getService(CdrSyncPatientService.class).getPatientsCount(includeVoided);
+	}
+	
+	@Override
+	public long getPatientsCount(Date startDate, Date endDate, boolean includeVoided) {
+		return Context.getService(CdrSyncPatientService.class).getPatientCountFromLastSyncDate(startDate, endDate, null,
+		    includeVoided);
+	}
+	
 	private MessageHeaderType buildMessageHeader() {
 		MessageHeaderType messageHeaderType = new MessageHeaderType();
 		messageHeaderType.setFacilityName(facilityName);
 		messageHeaderType.setFacilityDatimCode(datimCode);
+		if (datimMap != null) {
+			messageHeaderType.setFacilityLga(datimMap.getLgaName());
+			messageHeaderType.setFacilityState(datimMap.getStateName());
+		}
 		messageHeaderType.setMessageCreationDateTime(new Date());
 		messageHeaderType.setMessageSchemaVersion(new BigDecimal("1.0"));
 		messageHeaderType.setMessageStatusCode("SYNCED");
@@ -248,37 +372,63 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	private MessageDataType buildMessageData(Patient patient, Date[] touchTimes) {
 		MessageDataType messageDataType = new MessageDataType();
         List<EncounterProvider> providers = new ArrayList<>();
+		List<Encounter> encounters = new ArrayList<>();
+		List<Obs> obsList = new ArrayList<>();
 		messageDataType.setDemographics(buildDemographics(patient, touchTimes));
-		messageDataType.setVisits(buildVisits(patient, touchTimes));
+		messageDataType.setVisits(buildVisits(patient, touchTimes, encounters));
+		messageDataType.setEncounters(buildEncounters(patient, providers, touchTimes, encounters, obsList));
+		messageDataType.setObs(buildObs(patient, touchTimes, obsList));
+		messageDataType.setEncounterProviders(buildEncounterProviders(providers, patient, touchTimes));
 		messageDataType.setPatientBiometrics(buildPatientBiometrics(patient, touchTimes));
 		messageDataType.setPatientPrograms(buildPatientProgram(patient, touchTimes));
 		messageDataType.setPatientIdentifiers(buildPatientIdentifier(patient, touchTimes));
-		messageDataType.setEncounters(buildEncounters(patient, providers, touchTimes));
-		messageDataType.setObs(buildObs(patient, touchTimes));
-		messageDataType.setEncounterProviders(buildEncounterProviders(providers, patient, touchTimes));
 		return messageDataType;
 	}
 	
 	private MessageDataType buildMessageDataFromLastSync(Patient patient, boolean[] hasUpdate, Date[] touchTimes, Date from, Date to) {
         MessageDataType messageData = new MessageDataType();
         List<EncounterProvider> providers = new ArrayList<>();
+		List<Encounter> encounters = new ArrayList<>();
+		List<Obs> obsList = new ArrayList<>();
         messageData.setDemographics(buildDemographics(patient, touchTimes, hasUpdate, from, to));
-        messageData.setVisits(buildVisits(patient, hasUpdate, touchTimes, from, to));
+        messageData.setVisits(buildVisits(patient, hasUpdate, touchTimes, from, to, encounters));
+		messageData.setEncounters(buildEncounters(patient, providers, touchTimes, hasUpdate, encounters, obsList));
+		messageData.setObs(buildObs(patient, touchTimes, hasUpdate, obsList));
+		messageData.setEncounterProviders(buildEncounterProviders(providers, patient, touchTimes));
         messageData.setPatientBiometrics(buildPatientBiometrics(patient, touchTimes, hasUpdate, from));
         messageData.setPatientPrograms(buildPatientProgram(patient, touchTimes, hasUpdate, from, to));
         messageData.setPatientIdentifiers(buildPatientIdentifier(patient, touchTimes, hasUpdate, from));
-        messageData.setEncounters(buildEncounters(patient, providers, touchTimes, hasUpdate, from, to));
-        messageData.setObs(buildObs(patient, touchTimes, hasUpdate, from, to));
-        messageData.setEncounterProviders(buildEncounterProviders(providers, patient, touchTimes));
         return messageData;
     }
+	
+	private DemographicsType buildDemographics(Patient patient, Date[] touchTimes) {
+		DemographicsType demographicsType = new DemographicsType();
+		PersonAddress personAddress = patient.getPersonAddress();
+		if (personAddress != null)
+			setPersonTouchTime(touchTimes, personAddress.getDateChanged(), personAddress.getDateCreated());
+		
+		PersonName personName = patient.getPersonName();
+		if (personName != null)
+			setPersonTouchTime(touchTimes, personName.getDateChanged(), personName.getDateCreated());
+		
+		PersonAttribute personAttribute = patient.getAttribute(8);
+		if (personAttribute != null)
+			setPersonTouchTime(touchTimes, personAttribute.getDateChanged(), personAttribute.getDateCreated());
+		return setContainerDemographics(patient, touchTimes, demographicsType, personAddress);
+	}
 	
 	private DemographicsType buildDemographics(Patient patient, Date[] touchTimes, boolean[] hasUpdate, Date from, Date to) {
 		DemographicsType demographicsType = new DemographicsType();
 		PersonAddress personAddress = patient.getPersonAddress();
-		checkUpdatedDate(touchTimes, hasUpdate, from, to, personAddress.getDateChanged(), personAddress.getDateCreated());
+		if (personAddress != null)
+			checkUpdatedDate(touchTimes, hasUpdate, from, to, personAddress.getDateChanged(), personAddress.getDateCreated());
 		PersonName personName = patient.getPersonName();
-		checkUpdatedDate(touchTimes, hasUpdate, from, to, personName.getDateChanged(), personName.getDateCreated());
+		if (personName != null)
+			checkUpdatedDate(touchTimes, hasUpdate, from, to, personName.getDateChanged(), personName.getDateCreated());
+		PersonAttribute personAttribute = patient.getAttribute(8);
+		if (personAttribute != null)
+			checkUpdatedDate(touchTimes, hasUpdate, from, to, personAttribute.getDateChanged(),
+			    personAttribute.getDateCreated());
 		return setContainerDemographics(patient, touchTimes, demographicsType, personAddress);
 	}
 	
@@ -301,19 +451,20 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	private DemographicsType setContainerDemographics(Patient patient, Date[] touchTimes, DemographicsType demographicsType,
 	        PersonAddress personAddress) {
-		if (personAddress.getAddress1() != null && !personAddress.getAddress1().isEmpty()) {
-			demographicsType.setAddress1(Security.encrypt(personAddress.getAddress1()));
+		if (personAddress != null) {
+			if (personAddress.getAddress1() != null && !personAddress.getAddress1().isEmpty()) {
+				demographicsType.setAddress1(Security.encrypt(personAddress.getAddress1()));
+			}
+			if (personAddress.getAddress2() != null && !personAddress.getAddress2().isEmpty()) {
+				demographicsType.setAddress2(Security.encrypt(personAddress.getAddress2()));
+			}
+			demographicsType.setCityVillage(personAddress.getCityVillage());
+			demographicsType.setStateProvince(personAddress.getStateProvince());
+			demographicsType.setCountry(personAddress.getCountry());
 		}
-		if (personAddress.getAddress2() != null && !personAddress.getAddress2().isEmpty()) {
-			demographicsType.setAddress2(Security.encrypt(personAddress.getAddress2()));
-		}
-		demographicsType.setCityVillage(personAddress.getCityVillage());
-		demographicsType.setStateProvince(personAddress.getStateProvince());
-		demographicsType.setCountry(personAddress.getCountry());
-		
 		if (patient.getVoided()) {
 			demographicsType.setVoided(1);
-			demographicsType.setVoidedBy(patient.getVoidedBy().getId());
+			demographicsType.setVoidedBy(patient.getVoidedBy() != null ? patient.getVoidedBy().getId() : 0);
 			demographicsType.setDateVoided(patient.getDateVoided());
 			if (touchTimes[0].before(patient.getDateVoided()))
 				touchTimes[0] = patient.getDateVoided();
@@ -326,7 +477,12 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		
 		demographicsType.setBirthdate(patient.getBirthdate());
 		demographicsType.setBirthdateEstimated(patient.getBirthdateEstimated() ? 1 : 0);
-		demographicsType.setChangedBy(patient.getChangedBy() != null ? patient.getChangedBy().getId() : 0);
+		try {
+			demographicsType.setChangedBy(patient.getChangedBy() != null ? patient.getChangedBy().getId() : 0);
+		}
+		catch (Exception e) {
+			demographicsType.setChangedBy(0);
+		}
 		demographicsType.setDeathdateEstimated(patient.getDeathdateEstimated() ? 1 : 0);
 		demographicsType.setDeathDate(patient.getDeathDate());
 		demographicsType.setDead(patient.getDead() ? 1 : 0);
@@ -345,53 +501,41 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		return demographicsType;
 	}
 	
-	private DemographicsType buildDemographics(Patient patient, Date[] touchTimes) {
-		DemographicsType demographicsType = new DemographicsType();
-		PersonAddress personAddress = patient.getPersonAddress();
-		if (personAddress.getDateChanged() != null) {
-			if (touchTimes[0].before(personAddress.getDateChanged()))
-				touchTimes[0] = personAddress.getDateChanged();
-		} else if (personAddress.getDateCreated() != null) {
-			if (touchTimes[0].before(personAddress.getDateCreated()))
-				touchTimes[0] = personAddress.getDateCreated();
+	private void setPersonTouchTime(Date[] touchTimes, Date dateChanged, Date dateCreated) {
+		
+		if (dateChanged != null) {
+			if (touchTimes[0].before(dateChanged))
+				touchTimes[0] = dateChanged;
+		} else if (dateCreated != null) {
+			if (touchTimes[0].before(dateCreated))
+				touchTimes[0] = dateCreated;
 		}
-		PersonName personName = patient.getPersonName();
-		if (personName.getDateChanged() != null) {
-			if (touchTimes[0].before(personName.getDateChanged()))
-				touchTimes[0] = personName.getDateChanged();
-		} else if (personName.getDateCreated() != null) {
-			if (touchTimes[0].before(personName.getDateCreated()))
-				touchTimes[0] = personName.getDateCreated();
-		}
-		return setContainerDemographics(patient, touchTimes, demographicsType, personAddress);
+		
 	}
 	
-	private List<VisitType> buildVisits(Patient patient, Date[] touchTimes) {
+	private List<VisitType> buildVisits(Patient patient, Date[] touchTimes, List<Encounter> encounters) {
         List<VisitType> visitTypes = new ArrayList<>();
         List<Visit> visits = visitService.getVisits(
                 null, Collections.singletonList(patient), null, null, null,
                 null, null, null, null, true, true
         );
         if (visits != null && !visits.isEmpty()) {
-            buildContainerVisitType(patient, touchTimes, visitTypes, visits);
-        } else
-            System.out.println("No visits for this patient");
+            buildContainerVisitType(patient, touchTimes, visitTypes, visits, encounters);
+        }
         return visitTypes;
     }
 	
-	private List<VisitType> buildVisits(Patient patient, boolean[] hasUpdate, Date[] touchTimes, Date startDate, Date endDate) {
+	private List<VisitType> buildVisits(Patient patient, boolean[] hasUpdate, Date[] touchTimes, Date startDate, Date endDate, List<Encounter> encounters) {
         List<VisitType> visitTypes = new ArrayList<>();
         List<Visit> visits = Context.getService(CdrSyncVisitService.class).getVisitsByPatientAndDateChanged(patient, startDate, endDate);
         if (visits != null && !visits.isEmpty()) {
             hasUpdate[0] = true;
-            buildContainerVisitType(patient, touchTimes, visitTypes, visits);
-        } else
-            System.out.println("No visits for this patient");
+            buildContainerVisitType(patient, touchTimes, visitTypes, visits, encounters);
+        }
         return visitTypes;
     }
 	
-	private void buildContainerVisitType(Patient patient, Date[] touchTimes, List<VisitType> visitTypes, List<Visit> visits) {
-        System.out.println("No of visits::"+visits.size());
+	private void buildContainerVisitType(Patient patient, Date[] touchTimes, List<VisitType> visitTypes, List<Visit> visits, List<Encounter> encounters) {
         visits.forEach(visit -> {
             VisitType visitType = new VisitType();
             visitType.setVisitId(visit.getVisitId());
@@ -404,24 +548,27 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             visitType.setChangedBy(visit.getChangedBy() != null ? visit.getChangedBy().getId() : 0);
             visitType.setDateChanged(visit.getDateChanged());
             visitType.setVoided(visit.getVoided() ? 1 : 0);
-            visitType.setVoidedBy(visit.getVoided() ? visit.getVoidedBy().getId() : 0);
+            visitType.setVoidedBy(visit.getVoided() ? visit.getVoidedBy() != null ? visit.getVoidedBy().getId() : 0 : 0);
             visitType.setDateVoided(visit.getDateVoided());
             visitType.setVisitUuid(visit.getUuid());
             visitType.setLocationId(visit.getLocation() != null ? visit.getLocation().getLocationId() : 0);
             visitType.setPatientUuid(patient.getPerson().getUuid());
             visitType.setDatimId(datimCode);
+			visitTypes.add(visitType);
             if (visit.getDateChanged() != null) {
                 if (touchTimes[0].before(visit.getDateChanged()))
                     touchTimes[0] = visit.getDateChanged();
             } else {
-                if (touchTimes[0].before(visit.getDateCreated()))
+                if (visit.getDateCreated() != null && touchTimes[0].before(visit.getDateCreated()))
                     touchTimes[0] = visit.getDateCreated();
             }
-            visitTypes.add(visitType);
-            if (visit.getDateVoided() != null) {
-                if (touchTimes[0].before(visit.getDateVoided()))
+            if (visit.getDateVoided() != null && touchTimes[0].before(visit.getDateVoided())) {
                     touchTimes[0] = visit.getDateVoided();
             }
+			Set<Encounter> visitEncounters = visit.getEncounters();
+			if (visitEncounters != null && !visitEncounters.isEmpty()) {
+				encounters.addAll(visitEncounters);
+			} //todo refactor this
         });
     }
 	
@@ -430,8 +577,6 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         List<BiometricInfo> biometricInfos = biometricInfoService.getBiometricInfoByPatientId(patient.getPatientId());
         if (biometricInfos != null && !biometricInfos.isEmpty()) {
             buildContainerBiometricType(patient, touchTimes, patientBiometricTypes, biometricInfos);
-        } else {
-            System.out.println("No biometrics found");
         }
         return patientBiometricTypes;
     }
@@ -442,14 +587,11 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         if (biometricInfos != null && !biometricInfos.isEmpty()) {
             hasUpdate[0] = true;
             buildContainerBiometricType(patient, touchTimes, patientBiometricTypes, biometricInfos);
-        } else {
-            System.out.println("No biometrics found");
         }
         return patientBiometricTypes;
     }
 	
 	private void buildContainerBiometricType(Patient patient, Date[] touchTimes, List<PatientBiometricType> patientBiometricTypes, List<BiometricInfo> biometricInfos) {
-        System.out.println("No of biometrics::"+biometricInfos.size());
         biometricInfos.forEach(biometricInfo -> {
             PatientBiometricType patientBiometricType = new PatientBiometricType();
             patientBiometricType.setBiometricInfoId(biometricInfo.getBiometricInfoId());
@@ -480,8 +622,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         );
         if (patientPrograms != null && !patientPrograms.isEmpty()) {
             buildContainerPatientProgramType(touchTimes, patientProgramTypes, patientPrograms);
-        } else
-            System.out.println("No patient programs");
+        }
         return patientProgramTypes;
     }
 	
@@ -492,13 +633,11 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         if (patientPrograms != null && !patientPrograms.isEmpty()) {
             hasUpdate[0] = true;
             buildContainerPatientProgramType(touchTimes, patientProgramTypes, patientPrograms);
-        } else
-            System.out.println("No patient programs");
+        }
         return patientProgramTypes;
     }
 	
 	private void buildContainerPatientProgramType(Date[] touchTimes, List<PatientProgramType> patientProgramTypes, List<PatientProgram> patientPrograms) {
-        System.out.println("No of patient programs::"+patientPrograms.size());
         patientPrograms.forEach(patientProgram -> {
             PatientProgramType patientProgramType = new PatientProgramType();
             patientProgramType.setPatientProgramId(patientProgram.getPatientProgramId());
@@ -518,7 +657,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             patientProgramType.setChangedBy(patientProgram.getChangedBy() != null ?
                     patientProgram.getChangedBy().getId() : 0);
             patientProgramType.setVoided(patientProgram.getVoided() ? 1 : 0);
-            patientProgramType.setVoidedBy(patientProgram.getVoided() ? patientProgram.getVoidedBy().getId() : 0);
+            patientProgramType.setVoidedBy(patientProgram.getVoided() ? patientProgram.getVoidedBy() != null ? patientProgram.getVoidedBy().getId() : 0 : 0);
             patientProgramType.setDateVoided(patientProgram.getDateVoided());
             patientProgramType.setPatientProgramUuid(patientProgram.getUuid());
             patientProgramType.setPatientUuid(patientProgram.getPatient().getPerson().getUuid());
@@ -526,16 +665,8 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                     patientProgram.getLocation().getLocationId() : 0);
             patientProgramType.setDatimId(datimCode);
             patientProgramTypes.add(patientProgramType);
-            if (patientProgram.getDateChanged() != null) {
-                if (touchTimes[0].before(patientProgram.getDateChanged()))
-                    touchTimes[0] = patientProgram.getDateChanged();
-            } else {
-                if (touchTimes[0].before(patientProgram.getDateCreated()))
-                    touchTimes[0] = patientProgram.getDateCreated();
-            }
-            if (patientProgram.getDateVoided() != null && touchTimes[0].before(patientProgram.getDateVoided()))
-                touchTimes[0] = patientProgram.getDateVoided();
-        });
+			updatePatientTouchTime(touchTimes, patientProgram.getDateChanged(), patientProgram.getDateCreated(), patientProgram.getDateVoided());
+		});
     }
 	
 	private List<PatientIdentifierType> buildPatientIdentifier (Patient patient, Date[] touchTimes) {
@@ -543,8 +674,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         Set<PatientIdentifier> patientIdentifiers = patient.getIdentifiers();
         if (patientIdentifiers != null && !patientIdentifiers.isEmpty()) {
             buildContainerPatientIdentifier(patient, touchTimes, patientIdentifierTypes, patientIdentifiers);
-        } else
-            System.out.println("No patient identifiers");
+        }
         return patientIdentifierTypes;
     }
 	
@@ -553,21 +683,22 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         Set<PatientIdentifier> patientIdentifiers = patient.getIdentifiers();
         if (patientIdentifiers != null && !patientIdentifiers.isEmpty()) {
             Set<PatientIdentifier> updatedPatientIdentifiers = patientIdentifiers.stream()
-                    .filter(patientIdentifier -> patientIdentifier.getDateChanged() != null &&
-                            patientIdentifier.getDateChanged().after(lastSyncDate))
+                    .filter(patientIdentifier -> (patientIdentifier.getDateChanged() != null &&
+                            patientIdentifier.getDateChanged().after(lastSyncDate)) ||
+														(patientIdentifier.getDateVoided() != null &&
+							patientIdentifier.getDateVoided().after(lastSyncDate)) ||
+														(patientIdentifier.getDateCreated() != null &&
+							patientIdentifier.getDateCreated().after(lastSyncDate)))
                     .collect(Collectors.toSet());
             if (!updatedPatientIdentifiers.isEmpty()) {
                 hasUpdate[0] = true;
                 buildContainerPatientIdentifier(patient, touchTimes, patientIdentifierTypes, updatedPatientIdentifiers);
-            } else
-                System.out.println("No updated patient identifiers");
-        } else
-            System.out.println("No patient identifiers");
+            }
+        }
         return patientIdentifierTypes;
     }
 	
 	private void buildContainerPatientIdentifier(Patient patient, Date[] touchTimes, List<PatientIdentifierType> patientIdentifierTypes, Set<PatientIdentifier> updatedPatientIdentifiers) {
-        System.out.println("No of patient identifiers::" + updatedPatientIdentifiers.size());
         updatedPatientIdentifiers.forEach(patientIdentifier -> {
             PatientIdentifierType patientIdentifierType = new PatientIdentifierType();
             patientIdentifierType.setPatientIdentifierId(patientIdentifier.getPatientIdentifierId());
@@ -581,50 +712,42 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             patientIdentifierType.setDateCreated(patientIdentifier.getDateCreated());
             patientIdentifierType.setChangedBy(patientIdentifier.getChangedBy() != null ? patientIdentifier.getChangedBy().getId() : 0);
             patientIdentifierType.setVoided(patientIdentifier.getVoided() ? 1 : 0);
-            patientIdentifierType.setVoidedBy(patientIdentifier.getVoided() ? patientIdentifier.getVoidedBy().getId() : 0);
+            patientIdentifierType.setVoidedBy(patientIdentifier.getVoided() ? patientIdentifier.getVoidedBy() != null ? patientIdentifier.getVoidedBy().getId() : 0 : 0);
             patientIdentifierType.setDateVoided(patientIdentifier.getDateVoided());
             patientIdentifierType.setDatimId(datimCode);
             patientIdentifierType.setPatientUuid(patient.getUuid());
             patientIdentifierTypes.add(patientIdentifierType);
-            if (patientIdentifier.getDateChanged() != null) {
-                if (touchTimes[0].before(patientIdentifier.getDateChanged()))
-                    touchTimes[0] = patientIdentifier.getDateChanged();
-            } else {
-                if (touchTimes[0].before(patientIdentifier.getDateCreated()))
-                    touchTimes[0] = patientIdentifier.getDateCreated();
-            }
-            if (patientIdentifier.getDateVoided() != null && touchTimes[0].before(patientIdentifier.getDateVoided()))
-                touchTimes[0] = patientIdentifier.getDateVoided();
-        });
+			updatePatientTouchTime(touchTimes, patientIdentifier.getDateChanged(), patientIdentifier.getDateCreated(), patientIdentifier.getDateVoided());
+		});
     }
 	
-	private List<EncounterType> buildEncounters(Patient patient, List<EncounterProvider> providers, Date[] touchTimes) {
+	private List<EncounterType> buildEncounters(
+			Patient patient, List<EncounterProvider> providers, Date[] touchTimes,
+			List<Encounter> encounters, List<Obs> obsList
+	) {
         List<EncounterType> encounterTypes = new ArrayList<>();
-//        List<Encounter> encounters = encounterService.getEncountersByPatientId(patient.getPatientId());
-        List<Encounter> encounters = encounterService.getEncounters(
-                patient, null, null, null, null, null, null,
-                null, null, true
-        );
-        if (encounters != null && !encounters.isEmpty()) {
-            buildContainerEncounterType(patient, providers, touchTimes, encounterTypes, encounters);
-        } else System.out.println("No encounters");
+//		List<Encounter> encounterList = encounterService.getEncounters(patient, null, null, null, null, null, null, null, null, true);
+		if (encounters != null && !encounters.isEmpty())
+            buildContainerEncounterType(patient, providers, touchTimes, encounterTypes, encounters, obsList);
         return encounterTypes;
     }
 	
-	private List<EncounterType> buildEncounters(Patient patient, List<EncounterProvider> providers, Date[] touchTimes, boolean[] hasUpdate, Date startDate, Date endDate) {
+	private List<EncounterType> buildEncounters(
+			Patient patient, List<EncounterProvider> providers, Date[] touchTimes,
+			boolean[] hasUpdate, List<Encounter> encounters, List<Obs> obsList) {
         List<EncounterType> encounterTypes = new ArrayList<>();
-//        List<Encounter> encounters = encounterService.getEncountersByPatientId(patient.getPatientId());
-        List<Encounter> encounters = Context.getService(CdrSyncEncounterService.class)
-                .getEncountersByLastSyncDateAndPatient(startDate, endDate, patient);
+//		List<Encounter> encounterList = encounterService.getEncounters(patient, null, null, null, null, null, null, null, null, true); todo: check if this is needed
         if (encounters != null && !encounters.isEmpty()) {
             hasUpdate[0] = true;
-            buildContainerEncounterType(patient, providers, touchTimes, encounterTypes, encounters);
-        } else System.out.println("No encounters");
+            buildContainerEncounterType(patient, providers, touchTimes, encounterTypes, encounters, obsList);
+        }
         return encounterTypes;
     }
 	
-	private void buildContainerEncounterType(Patient patient, List<EncounterProvider> providers, Date[] touchTimes, List<EncounterType> encounterTypes, List<Encounter> encounters) {
-        System.out.println("No of encounters::"+encounters.size());
+	private void buildContainerEncounterType(
+			Patient patient, List<EncounterProvider> providers, Date[] touchTimes,
+			List<EncounterType> encounterTypes, List<Encounter> encounters, List<Obs> obsList
+	) {
         encounters.forEach(encounter -> {
             EncounterType encounterType = new EncounterType();
             encounterType.setPatientUuid(patient.getPerson().getUuid());
@@ -638,59 +761,78 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             encounterType.setEncounterTypeId(encounter.getEncounterType() != null ?
                     encounter.getEncounterType().getEncounterTypeId() : 0);
             encounterType.setPatientId(patient.getPatientId());
-            encounterType.setFormId(encounter.getForm() != null ? encounter.getForm().getFormId() : 0);
             encounterType.setLocationId(encounter.getLocation() != null ? encounter.getLocation().getLocationId() : 0);
-            encounterType.setPmmForm(encounter.getForm() != null ? encounter.getForm().getName() : "");
-            encounterType.setEncounterDatetime(encounter.getEncounterDatetime());
+			try {
+				encounterType.setFormId(encounter.getForm() != null ? encounter.getForm().getFormId() : 0);
+				encounterType.setPmmForm(encounter.getForm() != null ? encounter.getForm().getName() != null ? encounter.getForm().getName() : "" : "");
+			} catch (Exception e) {
+				System.out.println("Error getting form name");
+			}
+			encounterType.setEncounterDatetime(encounter.getEncounterDatetime());
             encounterType.setCreator(encounter.getCreator() != null ? encounter.getCreator().getId() : 0);
             encounterType.setDateCreated(encounter.getDateCreated());
-            encounterType.setChangedBy(encounter.getChangedBy() != null ? encounter.getChangedBy().getId() : 0);
+			try {
+				encounterType.setChangedBy(encounter.getChangedBy() != null ? encounter.getChangedBy().getId() : 0);
+			} catch (Exception e) {
+				System.out.println("Error getting changed by");
+			}
             encounterType.setDateChanged(encounter.getDateChanged());
             encounterType.setVoided(encounter.getVoided() ? 1 : 0);
-            encounterType.setVoidedBy(encounter.getVoided() ? encounter.getVoidedBy().getId() : 0);
+            encounterType.setVoidedBy(encounter.getVoided() ? encounter.getVoidedBy() != null ? encounter.getVoidedBy().getId() : 0 : 0);
             encounterType.setDateVoided(encounter.getDateVoided());
             encounterTypes.add(encounterType);
             Set<EncounterProvider> encounterProviders = encounter.getEncounterProviders();
             if (!encounterProviders.isEmpty()) {
                 providers.addAll(encounterProviders);
             }
-            if (encounter.getDateChanged() != null) {
-                if (touchTimes[0].before(encounter.getDateChanged()))
-                    touchTimes[0] = encounter.getDateChanged();
-            } else {
-                if (touchTimes[0].before(encounter.getDateCreated()))
-                    touchTimes[0] = encounter.getDateCreated();
-            }
-            if (encounter.getDateVoided() != null && touchTimes[0].before(encounter.getDateVoided()))
-                touchTimes[0] = encounter.getDateVoided();
+			updatePatientTouchTime(touchTimes, encounter.getDateChanged(), encounter.getDateCreated(), encounter.getDateVoided());
+			Set<Obs> obsSet = encounter.getAllObs(true);
+			if (obsSet != null && !obsSet.isEmpty()) {
+				obsList.addAll(obsSet);
+			}
         });
     }
 	
-	private List<ObsType> buildObs(Patient patient, Date[] touchTimes) {
+	private void updatePatientTouchTime(Date[] touchTimes, Date dateChanged, Date dateCreated, Date dateVoided) {
+		if (touchTimes[0] == null) {
+			if (dateChanged != null)
+				touchTimes[0] = dateChanged;
+			else if (dateCreated != null)
+				touchTimes[0] = dateCreated;
+			else if (dateVoided != null)
+				touchTimes[0] = dateVoided;
+		} else {
+			if (dateChanged != null) {
+				if (touchTimes[0].before(dateChanged))
+					touchTimes[0] = dateChanged;
+			} else {
+				if (dateCreated != null && touchTimes[0].before(dateCreated))
+					touchTimes[0] = dateCreated;
+			}
+			if (dateVoided != null && touchTimes[0].before(dateVoided))
+				touchTimes[0] = dateVoided;
+		}
+	}
+	
+	private List<ObsType> buildObs(Patient patient, Date[] touchTimes, List<Obs> obsList) {
         List<ObsType> obsTypeList = new ArrayList<>();
-        List<Obs> obsList = obsService.getObservations(
-                Collections.singletonList(patient.getPerson()), null, null, null, null, null,
-                null, null, null, null, null, true
-        );
-        if (obsList != null && !obsList.isEmpty()) {
+		if (obsList != null && !obsList.isEmpty())
             buildContainerObsType(patient, touchTimes, obsTypeList, obsList);
-        } else System.out.println("No observations");
         return obsTypeList;
     }
 	
-	private List<ObsType> buildObs(Patient patient, Date[] touchTimes, boolean[] hasUpdate, Date lastSyncDate, Date lastSyncDate2) {
+	private List<ObsType> buildObs(Patient patient, Date[] touchTimes, boolean[] hasUpdate,
+								   List<Obs> obsList) {
         List<ObsType> obsTypeList = new ArrayList<>();
-        List<Obs> obsList = Context.getService(CdrSyncObsService.class).getObsByPatientAndLastSyncDate(patient, lastSyncDate, lastSyncDate2);
         if (obsList != null && !obsList.isEmpty()) {
             hasUpdate[0] = true;
             buildContainerObsType(patient, touchTimes, obsTypeList, obsList);
-        } else System.out.println("No observations");
+        }
         return obsTypeList;
     }
 	
 	private void buildContainerObsType(Patient patient, Date[] touchTimes, List<ObsType> obsTypeList, List<Obs> obsList) {
-        System.out.println("No of observations::"+obsList.size());
-        List<Integer> confidentialConcepts = new ArrayList<>(Arrays.asList(159635, 162729, 160638, 160641, 160642));
+        List<Integer> confidentialConcepts = new ArrayList<>(Arrays.asList(159635, 162729, 160638, 160641, 160642)); //todo get from global property
         obsList.forEach(obs -> {
             ObsType obsType = new ObsType();
             obsType.setPatientUuid(patient.getUuid());
@@ -698,14 +840,25 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             obsType.setObsUuid(obs.getUuid());
             obsType.setObsId(obs.getObsId());
             obsType.setPersonId(obs.getPersonId());
-            obsType.setConceptId(obs.getConcept() != null ? obs.getConcept().getConceptId() : 0);
+			try {
+				obsType.setConceptId(obs.getConcept() != null ? obs.getConcept().getConceptId() : 0);
+				obsType.setVariableName(obs.getConcept() != null ? obs.getConcept().getName().getName() : "");
+				obsType.setDatatype(obs.getConcept() != null ? obs.getConcept().getDatatype().getConceptDatatypeId() : 0);
+			} catch (Exception e) {
+				System.out.println("Error getting concept name");
+			}
+
             if (obs.getEncounter() != null) {
                 obsType.setEncounterId(obs.getEncounter().getEncounterId());
                 obsType.setEncounterUuid(obs.getEncounter().getUuid());
-                obsType.setPmmForm(obs.getEncounter().getForm() != null ?
-                        obs.getEncounter().getForm().getName() : "");
-                obsType.setFormId(obs.getEncounter().getForm() != null ?
-                        obs.getEncounter().getForm().getFormId() : 0);
+				try {
+					obsType.setPmmForm(obs.getEncounter().getForm() != null ?
+							obs.getEncounter().getForm().getName() : "");
+					obsType.setFormId(obs.getEncounter().getForm() != null ?
+							obs.getEncounter().getForm().getFormId() : 0);
+				} catch (Exception e) {
+					System.out.println("Error getting form name");
+				}
                 obsType.setEncounterType(obs.getEncounter().getEncounterType() != null ?
                         obs.getEncounter().getEncounterType().getEncounterTypeId() : 0);
                 obsType.setVisitUuid(obs.getEncounter().getVisit() != null ?
@@ -723,40 +876,30 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                         Security.encrypt(obs.getValueCoded().getName().getName()) : obs.getValueText() != null ?
                         Security.encrypt(obs.getValueText()) : obs.getValueDatetime() != null ?
                         Security.encrypt(String.valueOf(obs.getValueDatetime())) : obs.getValueNumeric() != null ?
-                        Security.encrypt(String.valueOf(obs.getValueNumeric())) : ""); //todo
+                        Security.encrypt(String.valueOf(obs.getValueNumeric())) : "");
             } else {
                 obsType.setValueText(obs.getValueText());
                 obsType.setVariableValue(obs.getValueCoded() != null ?
                         obs.getValueCoded().getName().getName() : obs.getValueText() != null ?
                         obs.getValueText() : obs.getValueDatetime() != null ?
                         String.valueOf(obs.getValueDatetime()) : obs.getValueNumeric() != null ?
-                        String.valueOf(obs.getValueNumeric()) : ""); //todo
+                        String.valueOf(obs.getValueNumeric()) : "");
             }
             obsType.setCreator(obs.getCreator() != null ? obs.getCreator().getId() : 0);
             obsType.setDateCreated(obs.getDateCreated());
-            obsType.setVariableName(obs.getConcept() != null ? obs.getConcept().getName().getName() : ""); //todo
-            obsType.setDatatype(obs.getConcept() != null ? obs.getConcept().getDatatype().getConceptDatatypeId() : 0);
+
             obsType.setLocationId(obs.getLocation() != null ? obs.getLocation().getLocationId() : 0);
             obsType.setVoided(obs.getVoided() ? 1 : 0);
-            obsType.setVoidedBy(obs.getVoided() ? obs.getVoidedBy().getId() : 0);
+            obsType.setVoidedBy(obs.getVoided() ? obs.getVoidedBy() != null ? obs.getVoidedBy().getId() : 0 : 0);
             obsType.setDateVoided(obs.getDateVoided());
             obsTypeList.add(obsType);
-            if (obs.getDateChanged() != null) {
-                if (touchTimes[0].before(obs.getDateChanged()))
-                    touchTimes[0] = obs.getDateChanged();
-            } else {
-                if (touchTimes[0].before(obs.getDateCreated()))
-                    touchTimes[0] = obs.getDateCreated();
-            }
-            if (obs.getDateVoided() != null && touchTimes[0].before(obs.getDateVoided()))
-                touchTimes[0] = obs.getDateVoided();
-        });
+			updatePatientTouchTime(touchTimes, obs.getDateChanged(), obs.getDateCreated(), obs.getDateVoided());
+		});
     }
 	
 	private List<EncounterProviderType> buildEncounterProviders(List<EncounterProvider> providers, Patient patient, Date[] touchTimes) {
         List<EncounterProviderType> encounterProviderTypes = new ArrayList<>();
         if (!providers.isEmpty()) {
-            System.out.println("Providers::" + providers.size());
             providers.forEach(encounterProvider -> {
                 EncounterProviderType providerType = new EncounterProviderType();
                 providerType.setEncounterProviderId(encounterProvider.getEncounterProviderId());
@@ -778,16 +921,8 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                 providerType.setPatientUuid(patient.getUuid());
                 providerType.setDatimId(datimCode);
                 encounterProviderTypes.add(providerType);
-                if (encounterProvider.getDateChanged() != null) {
-                    if (touchTimes[0].before(encounterProvider.getDateChanged()))
-                        touchTimes[0] = encounterProvider.getDateChanged();
-                } else {
-                    if (touchTimes[0].before(encounterProvider.getDateCreated()))
-                        touchTimes[0] = encounterProvider.getDateCreated();
-                }
-                if (encounterProvider.getDateVoided() != null && touchTimes[0].before(encounterProvider.getDateVoided()))
-                    touchTimes[0] = encounterProvider.getDateVoided();
-            });
+				updatePatientTouchTime(touchTimes, encounterProvider.getDateChanged(), encounterProvider.getDateCreated(), encounterProvider.getDateVoided());
+			});
         }
         return encounterProviderTypes;
     }

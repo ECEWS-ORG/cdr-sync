@@ -10,11 +10,18 @@ import java.util.Date;
 public interface CdrContainerService extends OpenmrsService {
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
-	String getAllPatients() throws IOException;
+	String getAllPatients(Long patientCount, int start, int length) throws IOException;
 	
-	String getAllPatients(Date startDate, Date endDate) throws IOException;
+	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
+	String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length) throws IOException;
 	
-	String getPatientsByEncounterDateTime(Date from, Date to) throws IOException;
-	
+	//	String getPatientsByEncounterDateTime(Date from, Date to) throws IOException;
+	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
 	void saveLastSyncDate();
+	
+	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
+	long getPatientsCount(boolean includeVoided) throws IOException;
+	
+	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
+	long getPatientsCount(Date startDate, Date endDate, boolean includeVoided) throws IOException;
 }

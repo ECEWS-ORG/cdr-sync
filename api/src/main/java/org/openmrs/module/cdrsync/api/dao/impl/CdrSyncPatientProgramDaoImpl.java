@@ -28,6 +28,7 @@ public class CdrSyncPatientProgramDaoImpl extends HibernateProgramWorkflowDAO im
 	}
 	
 	@Override
+	@SuppressWarnings("unchecked")
 	public List<PatientProgram> getPatientProgramsByPatientAndLastSyncDate(Patient patient, Date startDate, Date endDate) {
 		Criteria criteria = getSession().createCriteria(PatientProgram.class);
 		criteria.add(Restrictions.eq("patient", patient));

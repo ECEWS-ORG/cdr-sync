@@ -29,6 +29,7 @@ public class CdrSyncVisitDaoImpl extends HibernateVisitDAO implements CdrSyncVis
 	
 	// Get visits by patient where date created, date changed, or date voided is after from parameter and before to parameter
 	@Override
+	@SuppressWarnings("unchecked")
 	public List<Visit> getVisitsByPatientAndDateChanged(Patient patient, Date from, Date to) {
 		Criteria criteria = getSession().createCriteria(Visit.class);
 		criteria.add(Restrictions.eq("patient", patient));

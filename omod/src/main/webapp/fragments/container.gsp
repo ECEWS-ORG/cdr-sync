@@ -49,7 +49,7 @@
     var jq = jQuery;
     jq("#custom_date").hide();
 
-    jq(document).ajaxSend(function() {
+    jq(document).ajaxStart(function() {
         jq("#overlay").fadeIn(300);
     }).ajaxComplete(function (){
         setTimeout(function(){
@@ -59,26 +59,99 @@
 
     jq("#initial").click(function(){
         alert("Syncing from inception");
-        syncInitial().then(resp => {
-            if(resp.body === "Sync successful!") {
+        patientCountFromInitial().then(resp => {
+            var count = resp.body;
+            console.log("Total patients to sync: " + count);
+            if (count > 0) {
+                var start = 0;
+                var length = 500;
+                batchSyncFromInitial(count, start, length);
+            } else {
+                alert("No new patients to sync");
+            }
+        }, error => {
+            console.log(error);
+            alert(error.statusText);
+        });
+        // var start = 0;
+        // var length = 500;
+        // batchSyncFromInitial(start, length);
+
+    });
+
+    function batchSyncFromInitial(total, start, length) {
+        var serverResponse = "";
+        console.log("Syncing from " + start + " to " + (start + length));
+        syncInitial(total, start, length).then(resp => {
+            serverResponse = resp.body;
+            if (serverResponse !== "Sync complete!" &&
+                serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
+                serverResponse !== "Incomplete syncing, try again later!") {
+                batchSyncFromInitial(total, start + length, length);
+            } else {
+                jq('#message').html("<p>"+serverResponse+"</p>");
+            }
+            if (serverResponse === "Sync complete!") {
                 saveSyncDate();
             }
-            // alert(data);
-            jq('#message').html("<p>"+resp.body+"</p>");
-        }, error => console.log(error));
-    });
+        }, error => {
+            console.log(error);
+            alert(error.statusText);
+        });
+        // return serverResponse;
+    }
 
     jq("#update").click(function(){
         alert("Syncing from last sync date");
-        syncUpdate().then(resp => {
-            console.log(resp);
-            if(resp.body === "Sync successful!") {
+
+        patientCountFromLastSync().then(resp => {
+            var count = resp.body;
+            console.log("Total patients to sync: " + count);
+            if (count > 0) {
+                var start = 0;
+                var length = 500;
+                batchSyncFromLastSync(count, start, length);
+            } else {
+                alert("No new patients to sync");
+            }
+        }, error => {
+            console.log(error);
+            alert(error.statusText);
+        });
+
+        // batchSyncFromLastSync(start, length);
+
+        // syncUpdate().then(resp => {
+        //     console.log(resp);
+        //     if(resp.body === "Sync successful!") {
+        //         saveSyncDate();
+        //     }
+        //     // alert(data);
+        //     jq('#message').html("<p>"+resp.body+"</p>");
+        // }, error => console.log(error));
+    });
+
+    function batchSyncFromLastSync(totalPatients, start, length) {
+        var serverResponse = "";
+        console.log("Syncing from " + start + " to " + (start + length));
+        syncUpdate(totalPatients, start, length).then(resp => {
+            serverResponse = resp.body;
+            if (serverResponse !== "Sync complete!" &&
+                serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
+                serverResponse !== "Incomplete syncing, try again later!")
+            {
+                batchSyncFromLastSync(totalPatients, start + length, length);
+            } else {
+                jq('#message').html("<p>"+serverResponse+"</p>");
+            }
+            if (serverResponse === "Sync complete!") {
                 saveSyncDate();
             }
-            // alert(data);
-            jq('#message').html("<p>"+resp.body+"</p>");
-        }, error => console.log(error));
-    });
+        }, error => {
+            console.log(error);
+            alert(error.statusText);
+        });
+    }
 
     jq("#custom").click(function (){
         jq("#custom_date").show();
@@ -91,38 +164,116 @@
                 alert("Please choose an end date");
             } else {
                 alert("Syncing patients from " + startDate + " to " + endDate);
-                syncCustom(startDate, endDate).then(resp => {
-                    if(resp.body === "Sync successful!") {
-                        saveSyncDate();
+                patientCountFromCustomDate(startDate, endDate).then(resp => {
+                    var count = resp.body;
+                    console.log("Total patients to sync: " + count);
+                    if (count > 0) {
+                        var start = 0;
+                        var length = 500;
+                        batchSyncFromCustomDate(startDate, endDate, count, start, length);
+                    } else {
+                        alert("No new patients to sync");
                     }
-                    // alert(data);
-                    jq('#message').html("<p>"+resp.body+"</p>");
-                }, error => console.log(error));
+                }, error => {
+                    console.log(error);
+                    alert(error.statusText);
+                });
+                // var start = 0;
+                // var length = 500;
+                //
+                // batchSyncFromCustomDate(startDate, endDate, start, length);
+
+                // syncCustom(startDate, endDate).then(resp => {
+                //     if(resp.body === "Sync successful!") {
+                //         saveSyncDate();
+                //     }
+                //     // alert(data);
+                //     jq('#message').html("<p>"+resp.body+"</p>");
+                // }, error => console.log(error));
             }
         });
     });
 
-    function syncUpdate() {
+    function batchSyncFromCustomDate(from, to, total, start, length) {
+        var serverResponse = "";
+        console.log("Syncing from " + start + " to " + (start + length));
+        syncCustom(from, to, total, start, length).then(resp => {
+            serverResponse = resp.body;
+            if (serverResponse !== "Sync complete!" &&
+                serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
+                serverResponse !== "Incomplete syncing, try again later!") {
+                batchSyncFromCustomDate(from, to, total, start + length, length);
+            } else {
+                jq('#message').html("<p>"+serverResponse+"</p>");
+            }
+            if (serverResponse === "Sync complete!") {
+                saveSyncDate();
+            }
+        }, error => {
+            console.log(error);
+            alert(error.statusText);
+        });
+    }
+
+    function syncUpdate(total, start, length) {
         return Promise.resolve(jq.ajax({
             url: "${ui.actionLink("getPatientsFromLastSync")}",
-            dataType: "json"
+            dataType: "json",
+            data: {
+                'start': start,
+                'length': length,
+                'total': total
+            }
         }));
     }
 
-    function syncInitial() {
+    function syncInitial(total, start, length) {
         return Promise.resolve(jq.ajax({
             url: "${ui.actionLink("getPatientsFromInitial")}",
+            dataType: "json",
+            data: {
+                'start': start,
+                'length': length,
+                'total': total
+            }
+        }))
+    }
+
+    function patientCountFromInitial() {
+        return Promise.resolve(jq.ajax({
+            url: "${ui.actionLink("getPatientsCount")}",
             dataType: "json"
         }))
     }
 
-    function syncCustom(from, to) {
+    function patientCountFromLastSync() {
+        return Promise.resolve(jq.ajax({
+            url: "${ui.actionLink("getPatientsCountFromLastSync")}",
+            dataType: "json"
+        }))
+    }
+
+    function patientCountFromCustomDate(from, to) {
+        return Promise.resolve(jq.ajax({
+            url: "${ui.actionLink("getPatientsCountFromCustomDate")}",
+            dataType: "json",
+            data: {
+                'from': from,
+                'to': to
+            }
+        }))
+    }
+
+    function syncCustom(from, to, total, start, length) {
         return Promise.resolve(jq.ajax({
             url: "${ui.actionLink("getPatientsFromCustomDate")}",
             dataType: "json",
             data: {
                 'from': from,
-                'to': to
+                'to': to,
+                'start': start,
+                'length': length,
+                'total': total
             }
         }))
     }
