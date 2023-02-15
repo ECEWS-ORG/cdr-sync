@@ -4,6 +4,7 @@ import org.openmrs.api.UserService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.cdrsync.api.CdrContainerService;
 import org.openmrs.module.cdrsync.api.impl.CdrContainerServiceImpl;
+import org.openmrs.module.cdrsync.model.Partition;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.fragment.FragmentModel;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 
 public class ContainerFragmentController {
 	

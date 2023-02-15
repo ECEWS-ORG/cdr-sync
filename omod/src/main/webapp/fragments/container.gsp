@@ -79,21 +79,45 @@
 
     });
 
+    // function batchSyncFromInitial(total, start, length) {
+    //     var serverResponse = "";
+    //     console.log("Syncing from " + start + " to " + (start + length));
+    //     syncInitial(total, start, length).then(resp => {
+    //         serverResponse = resp.body;
+    //         if (serverResponse !== "Sync complete!" &&
+    //             serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
+    //             serverResponse !== "Incomplete syncing, try again later!") {
+    //             batchSyncFromInitial(total, start + length, length);
+    //         } else {
+    //             jq('#message').html("<p>"+serverResponse+"</p>");
+    //         }
+    //         if (serverResponse === "Sync complete!") {
+    //             saveSyncDate();
+    //         }
+    //     }, error => {
+    //         console.log(error);
+    //         alert(error.statusText);
+    //     });
+    //     // return serverResponse;
+    // }
+
     function batchSyncFromInitial(total, start, length) {
         var serverResponse = "";
         console.log("Syncing from " + start + " to " + (start + length));
         syncInitial(total, start, length).then(resp => {
             serverResponse = resp.body;
-            if (serverResponse !== "Sync complete!" &&
-                serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
-                serverResponse !== "Incomplete syncing, try again later!") {
-                batchSyncFromInitial(total, start + length, length);
-            } else {
-                jq('#message').html("<p>"+serverResponse+"</p>");
-            }
+            // if (serverResponse !== "Sync complete!" &&
+            //     serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
+            //     serverResponse !== "Incomplete syncing, try again later!") {
+            //     batchSyncFromInitial(total, start + length, length);
+            // } else {
+            //     jq('#message').html("<p>"+serverResponse+"</p>");
+            // }
+
             if (serverResponse === "Sync complete!") {
                 saveSyncDate();
             }
+            jq('#message').html("<p>"+serverResponse+"</p>");
         }, error => {
             console.log(error);
             alert(error.statusText);

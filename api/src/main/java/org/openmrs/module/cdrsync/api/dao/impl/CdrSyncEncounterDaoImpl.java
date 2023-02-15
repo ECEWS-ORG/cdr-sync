@@ -13,6 +13,7 @@ import org.openmrs.module.cdrsync.api.dao.CdrSyncEncounterDao;
 import java.util.Date;
 import java.util.List;
 
+@SuppressWarnings("unchecked")
 public class CdrSyncEncounterDaoImpl extends HibernateEncounterDAO implements CdrSyncEncounterDao {
 	
 	DbSessionFactory sessionFactory;

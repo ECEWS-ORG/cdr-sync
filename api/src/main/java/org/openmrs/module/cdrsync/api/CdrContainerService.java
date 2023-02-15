@@ -6,11 +6,15 @@ import org.openmrs.module.cdrsync.CdrsyncConfig;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 
 public interface CdrContainerService extends OpenmrsService {
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
 	String getAllPatients(Long patientCount, int start, int length) throws IOException;
+	
+	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
+	List<Integer> getAllPatients(boolean includeVoided) throws IOException;
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
 	String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length) throws IOException;
