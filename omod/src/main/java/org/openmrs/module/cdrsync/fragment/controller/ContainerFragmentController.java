@@ -1,10 +1,14 @@
 package org.openmrs.module.cdrsync.fragment.controller;
 
+import org.openmrs.User;
 import org.openmrs.api.UserService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.cdrsync.api.CdrContainerService;
+import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
 import org.openmrs.module.cdrsync.api.impl.CdrContainerServiceImpl;
-import org.openmrs.module.cdrsync.model.Partition;
+import org.openmrs.module.cdrsync.model.CdrSyncBatch;
+import org.openmrs.module.cdrsync.model.enums.SyncStatus;
+import org.openmrs.module.cdrsync.model.enums.SyncType;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.fragment.FragmentModel;
 import org.springframework.http.HttpStatus;
@@ -22,13 +26,19 @@ public class ContainerFragmentController {
 	
 	CdrContainerService containerService = new CdrContainerServiceImpl();
 	
+	User user = Context.getAuthenticatedUser();
+	
+	CdrSyncBatch cdrSyncBatch1;
+	
 	//	CdrContainerService containerService = Context.getService(CdrContainerService.class);
 	
 	public void controller(FragmentModel model, @SpringBean("userService") UserService service) {
 		String lastSyncDate = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
-		
+		List<CdrSyncBatch> recentSyncBatches = Context.getService(CdrSyncAdminService.class).getRecentSyncBatches();
+		System.out.println("recent sync batches::" + recentSyncBatches.size());
 		model.addAttribute("users", service.getAllUsers());
 		model.addAttribute("lastSyncDate", lastSyncDate);
+		model.addAttribute("recentSyncBatches", recentSyncBatches);
 	}
 	
 	public ResponseEntity<Long> getPatientsCount() throws IOException {
@@ -74,17 +84,78 @@ public class ContainerFragmentController {
 		return new ResponseEntity<Long>(response, HttpStatus.OK);
 	}
 	
+	public ResponseEntity<String> getPatientsProcessed(@RequestParam(value = "total") String total,
+	        @RequestParam(value = "type") String type) {
+		CdrSyncBatch cdrSyncBatch = Context.getService(CdrSyncAdminService.class).getCdrSyncBatchByStatusAndOwner(
+		    SyncStatus.IN_PROGRESS.name(), user.getUsername(), type);
+		if (cdrSyncBatch == null) {
+			cdrSyncBatch = new CdrSyncBatch();
+			cdrSyncBatch.setPatientsProcessed(0);
+			cdrSyncBatch.setPatients(Integer.parseInt(total));
+			cdrSyncBatch.setOwnerUsername(user.getUsername());
+			cdrSyncBatch.setDateStarted(new Date());
+			cdrSyncBatch.setStatus(SyncStatus.IN_PROGRESS.name());
+			cdrSyncBatch.setSyncType(type);
+			Context.getService(CdrSyncAdminService.class).saveCdrSyncBatch(cdrSyncBatch);
+		}
+		cdrSyncBatch1 = cdrSyncBatch;
+		Integer id = cdrSyncBatch.getId();
+		String resp;
+		if (id != null) {
+			resp = cdrSyncBatch.getPatientsProcessed() + "/" + cdrSyncBatch.getId();
+		} else {
+			resp = cdrSyncBatch.getPatientsProcessed() + "/" + 0;
+		}
+		//		System.out.println("Batch id::" + cdrSyncBatch1.getId());
+		return new ResponseEntity<String>(resp, HttpStatus.OK);
+	}
+	
+	public void updateCdrSyncBatch(@RequestParam(value = "type") String type,
+	        @RequestParam(value = "processed") String processed, @RequestParam(value = "id") String id,
+	        @RequestParam(value = "total") String total) {
+		//		CdrSyncBatch cdrSyncBatch = Context.getService(CdrSyncAdminService.class).getCdrSyncBatchByStatusAndOwner(
+		//		    SyncStatus.IN_PROGRESS.name(), user.getUsername(), type);
+		int processedPatients = Integer.parseInt(processed);
+		int batchId = Integer.parseInt(id);
+		int totalPatients = Integer.parseInt(total);
+		cdrSyncBatch1 = new CdrSyncBatch();
+		cdrSyncBatch1.setId(batchId);
+		cdrSyncBatch1.setPatientsProcessed(processedPatients);
+		cdrSyncBatch1.setPatients(totalPatients);
+		cdrSyncBatch1.setOwnerUsername(user.getUsername());
+		cdrSyncBatch1.setStatus(SyncStatus.IN_PROGRESS.name());
+		cdrSyncBatch1.setSyncType(type);
+		cdrSyncBatch1 = Context.getService(CdrSyncAdminService.class).saveCdrSyncBatch(cdrSyncBatch1);
+		System.out.println("Updated batch::" + cdrSyncBatch1.getPatientsProcessed());
+	}
+	
 	public ResponseEntity<String> getPatientsFromInitial(@RequestParam(value = "start") String start,
-	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total) throws IOException {
+	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total,
+	        @RequestParam(value = "id") String id) throws IOException {
 		System.out.println("From initial::" + start + " " + length);
 		String response;
-		int count = Integer.parseInt(start);
-		response = containerService.getAllPatients(Long.parseLong(total), count, Integer.parseInt(length));
+		int startPoint = Integer.parseInt(start);
+		long totalPatients = Long.parseLong(total);
+		int lengthOfPatients = Integer.parseInt(length);
+		int batchId = Integer.parseInt(id);
+		response = containerService.getAllPatients(totalPatients, startPoint, lengthOfPatients, SyncType.INITIAL.name());
+		if (response.equals("Sync complete!")) {
+			cdrSyncBatch1 = new CdrSyncBatch();
+			cdrSyncBatch1.setId(batchId);
+			cdrSyncBatch1.setDateCompleted(new Date());
+			cdrSyncBatch1.setStatus(SyncStatus.COMPLETED.name());
+			cdrSyncBatch1.setPatientsProcessed(startPoint);
+			cdrSyncBatch1.setPatients((int) totalPatients);
+			cdrSyncBatch1.setOwnerUsername(user.getUsername());
+			cdrSyncBatch1.setSyncType(SyncType.INITIAL.name());
+			Context.getService(CdrSyncAdminService.class).saveCdrSyncBatch(cdrSyncBatch1);
+		}
 		return new ResponseEntity<String>(response, HttpStatus.OK);
 	}
 	
 	public ResponseEntity<String> getPatientsFromLastSync(@RequestParam(value = "start") String start,
-	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total) throws IOException {
+	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total,
+	        @RequestParam(value = "id") String id) throws IOException {
 		String lastSync = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
 		System.out.println("From db::" + lastSync);
 		String response;
@@ -94,8 +165,8 @@ public class ContainerFragmentController {
 				Date lastSyncDate = dateFormat.parse(lastSync);
 				System.out.println("Last sync date::" + lastSyncDate);
 				response = containerService.getAllPatients(Long.valueOf(total), lastSyncDate, new Date(),
-				    Integer.parseInt(start), Integer.parseInt(length));
-				return new ResponseEntity<String>(response, HttpStatus.OK);
+				    Integer.parseInt(start), Integer.parseInt(length), SyncType.INCREMENTAL.name());
+				return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 			}
 			catch (ParseException e) {
 				System.out.println("parse exception::" + e.getMessage());
@@ -110,21 +181,47 @@ public class ContainerFragmentController {
 			
 		} else {
 			response = containerService.getAllPatients(Long.parseLong(total), Integer.parseInt(start),
-			    Integer.parseInt(length));
-			return new ResponseEntity<String>(response, HttpStatus.OK);
+			    Integer.parseInt(length), SyncType.INCREMENTAL.name());
+			return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 		}
+	}
+	
+	private ResponseEntity<String> checkIfSyncHasCompletedAndUpdateSyncBatch(String start, String total, String id,
+	        String response) {
+		if (response.equals("Sync complete!")) {
+			updateSyncBatch(start, total, id);
+			cdrSyncBatch1.setSyncType(SyncType.INCREMENTAL.name());
+			Context.getService(CdrSyncAdminService.class).saveCdrSyncBatch(cdrSyncBatch1);
+		}
+		return new ResponseEntity<String>(response, HttpStatus.OK);
 	}
 	
 	public ResponseEntity<String> getPatientsFromCustomDate(@RequestParam(value = "from") String from,
 	        @RequestParam(value = "to") String to, @RequestParam(value = "start") String start,
-	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total)
-	        throws ParseException, IOException {
+	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total,
+	        @RequestParam(value = "id") String id) throws ParseException, IOException {
 		System.out.println(from + ":::" + to);
 		DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
 		Date startDate = dateFormat.parse(from);
 		Date endDate = dateFormat.parse(to);
-		return new ResponseEntity<String>(containerService.getAllPatients(Long.parseLong(total), startDate, endDate,
-		    Integer.parseInt(start), Integer.parseInt(length)), HttpStatus.OK);
+		String response = containerService.getAllPatients(Long.parseLong(total), startDate, endDate,
+		    Integer.parseInt(start), Integer.parseInt(length), SyncType.CUSTOM.name());
+		if (response.equals("Sync complete!")) {
+			updateSyncBatch(start, total, id);
+			cdrSyncBatch1.setSyncType(SyncType.CUSTOM.name());
+			Context.getService(CdrSyncAdminService.class).saveCdrSyncBatch(cdrSyncBatch1);
+		}
+		return new ResponseEntity<String>(response, HttpStatus.OK);
+	}
+	
+	private void updateSyncBatch(String start, String total, String id) {
+		cdrSyncBatch1 = new CdrSyncBatch();
+		cdrSyncBatch1.setId(Integer.parseInt(id));
+		cdrSyncBatch1.setDateCompleted(new Date());
+		cdrSyncBatch1.setStatus(SyncStatus.COMPLETED.name());
+		cdrSyncBatch1.setPatientsProcessed(Integer.parseInt(start));
+		cdrSyncBatch1.setPatients(Integer.parseInt(total));
+		cdrSyncBatch1.setOwnerUsername(user.getUsername());
 	}
 	
 	public void saveLastSync() {

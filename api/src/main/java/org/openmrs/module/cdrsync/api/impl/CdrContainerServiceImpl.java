@@ -2,6 +2,7 @@ package org.openmrs.module.cdrsync.api.impl;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -20,6 +21,7 @@ import org.openmrs.module.cdrsync.container.model.PatientIdentifierType;
 import org.openmrs.module.cdrsync.container.model.VisitType;
 import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.*;
+import org.openmrs.module.cdrsync.model.enums.SyncType;
 import org.openmrs.util.Security;
 
 import java.io.File;
@@ -106,36 +108,26 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	}
 	
 	@Override
-	public String getAllPatients(Long patientCount, int start, int length) {
+	public String getAllPatients(Long patientCount, int start, int length, String type) {
 		String result;
 		System.out.println("Total no of patients:: " + patientCount);
 		if (start < patientCount) {
-			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientIds(true);
-			List<List<Integer>> partitions = Partition.ofSize(patients, 500);
-			UserContext userContext =  Context.getUserContext();
-			Thread thread = new Thread(() -> {
-				initialize(userContext);
-				for (List<Integer> partition : partitions) {
-					buildContainer(partition);
-				}
-			});
-			thread.start();
-//			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientIds(start, length, true);
-//			System.out.println("Total no of patients processing:: " + patients.size());
-//			result = buildContainer(patients);
-			return "Extraction in progress";
+			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientIds(start, length, true);
+			System.out.println("Total no of patients processing:: " + patients.size());
+			result = buildContainer(patients);
+			return result;
 		} else {
-			return zipFolder();
+			return zipFolder(type);
 		}
 	}
 	
 	@Override
-	public List<Integer> getAllPatients(boolean includeVoided) throws IOException {
+	public List<Integer> getAllPatients(boolean includeVoided) {
 		return Context.getService(CdrSyncPatientService.class).getPatientIds(includeVoided);
 	}
 	
 	@Override
-	public String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length) {
+	public String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length, String type) {
 		String result;
 		if (start < patientCount) {
 			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientsByLastSyncDate(startDate,
@@ -144,11 +136,11 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 			result = buildContainer(patients);
 			return result;
 		} else {
-			return zipFolder();
+			return zipFolder(type);
 		}
 	}
 	
-	private String zipFolder() {
+	private String zipFolder(String type) {
 		File folder = new File(folderPath);
 		File dir = new File(folder, "jsonFiles");
 		if (dir.listFiles() != null) {
@@ -159,10 +151,13 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 				zipDirectory(dir, dir.getName(), zipOutputStream);
 				zipOutputStream.close();
 				FileUtils.deleteDirectory(dir);
-				saveLastSyncDate();
+				if (!type.equals(SyncType.CUSTOM.name())) {
+					saveLastSyncDate();
+				}
 			}
 			catch (IOException e) {
 				e.printStackTrace();
+				throw new RuntimeException(e);
 			}
 		}
 		return "Sync complete!";
@@ -344,6 +339,8 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             String encryptedJson = Security.encrypt(json);
             EncryptedBody encryptedBody = new EncryptedBody(encryptedJson);
             HttpPost post = new HttpPost(url);
+			HttpGet get = new HttpGet(url);
+			get.setHeader("Content-Type", "application/json");
             post.setHeader("Content-Type", "application/json");
             post.setEntity(new StringEntity(objectMapper.writeValueAsString(encryptedBody)));
             try (CloseableHttpResponse response = httpClient.execute(post)){

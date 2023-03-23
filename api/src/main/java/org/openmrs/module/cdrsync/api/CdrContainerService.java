@@ -11,13 +11,14 @@ import java.util.List;
 public interface CdrContainerService extends OpenmrsService {
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
-	String getAllPatients(Long patientCount, int start, int length) throws IOException;
+	String getAllPatients(Long patientCount, int start, int length, String type) throws IOException;
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
 	List<Integer> getAllPatients(boolean includeVoided) throws IOException;
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
-	String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length) throws IOException;
+	String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length, String type)
+	        throws IOException;
 	
 	//	String getPatientsByEncounterDateTime(Date from, Date to) throws IOException;
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
