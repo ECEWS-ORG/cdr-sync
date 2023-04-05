@@ -22,6 +22,7 @@ import org.openmrs.module.cdrsync.container.model.VisitType;
 import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.*;
 import org.openmrs.module.cdrsync.model.enums.SyncType;
+import org.openmrs.module.cdrsync.utils.AppUtil;
 import org.openmrs.util.Security;
 
 import java.io.File;
@@ -80,7 +81,12 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		} else {
 			desktopPath = System.getProperty("user.home") + "/Desktop/";
 		}
+		System.out.println("desktop path: " + desktopPath);
 		folderPath = desktopPath + folderName;
+		File dir1 = new File(desktopPath, folderName);
+		if (!dir1.exists() && !dir1.mkdirs()) {
+			throw new RuntimeException("Unable to create directory " + dir1.getAbsolutePath());
+		}
 		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 		objectMapper.setDateFormat(df);
 		
@@ -108,16 +114,18 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	}
 	
 	@Override
-	public String getAllPatients(Long patientCount, int start, int length, String type) {
+	public String getAllPatients(Long patientCount, int start, int length, String type, String fullContextPath) {
 		String result;
 		System.out.println("Total no of patients:: " + patientCount);
+		String reportType = "CDR";
+		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
 		if (start < patientCount) {
 			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientIds(start, length, true);
 			System.out.println("Total no of patients processing:: " + patients.size());
-			result = buildContainer(patients);
+			result = buildContainer(patients, reportFolder);
 			return result;
 		} else {
-			return zipFolder(type);
+			return zipFolder(type, reportFolder);
 		}
 	}
 	
@@ -127,32 +135,52 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	}
 	
 	@Override
-	public String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length, String type) {
+	public String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length,
+	        String type, String fullContextPath) {
 		String result;
+		String reportType = "CDR";
+		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
 		if (start < patientCount) {
 			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientsByLastSyncDate(startDate,
 			    endDate, null, true, start, length);
 			//			result = buildContainer(patients, startDate, endDate);
-			result = buildContainer(patients);
+			result = buildContainer(patients, reportFolder);
 			return result;
 		} else {
-			return zipFolder(type);
+			return zipFolder(type, reportFolder);
 		}
 	}
 	
-	private String zipFolder(String type) {
-		File folder = new File(folderPath);
+	private String zipFolder(String type, String reportFolder) {
+		File folder = new File(reportFolder);
 		File dir = new File(folder, "jsonFiles");
+		StringBuilder result = new StringBuilder();
+		String facility = facilityName.replaceAll(" ", "_");
 		if (dir.listFiles() != null) {
 			ZipOutputStream zipOutputStream;
 			try {
+				String dateString = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
 				zipOutputStream = new ZipOutputStream(Files.newOutputStream(Paths.get(folder.getAbsolutePath(),
-				    partnerShortName + "_" + datimCode + "_" + facilityName + "_" + new Date().getTime() + ".zip")));
+				    partnerShortName + "_" + datimCode + "_" + facility + "_" + dateString + "_" + new Date().getTime()
+				            + ".zip")));
 				zipDirectory(dir, dir.getName(), zipOutputStream);
 				zipOutputStream.close();
 				FileUtils.deleteDirectory(dir);
 				if (!type.equals(SyncType.CUSTOM.name())) {
 					saveLastSyncDate();
+				}
+				File[] files = folder.listFiles();
+				if (files != null) {
+					for (File file : files) {
+						System.out.println(file.getAbsolutePath());
+						if (file.getName().endsWith(".zip")) {
+							String filePath = file.getAbsolutePath();
+							filePath = filePath.replace("\\", "\\\\");
+							result.append(filePath).append("&&");
+						}
+					}
+				} else {
+					System.out.println("No files found in the folder");
 				}
 			}
 			catch (IOException e) {
@@ -160,7 +188,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 				throw new RuntimeException(e);
 			}
 		}
-		return "Sync complete!";
+		return "Sync complete!," + result.toString().trim();
 	}
 	
 	private String buildContainer(List<Integer> patients, Date from, Date to) {
@@ -197,14 +225,14 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
         return resp;
     }
 	
-	private String buildContainer(List<Integer> patientIds) {
+	private String buildContainer(List<Integer> patientIds, String reportFolder) {
 		List<Container> containers = new ArrayList<>();
 		String resp;
 		AtomicInteger count = new AtomicInteger();
 		try {
 			patientIds.forEach(patientId -> {
 				try {
-					createContainer(containers, count, patientId);
+					createContainer(containers, count, patientId, reportFolder);
 				} catch (IOException e) {
 					throw new RuntimeException(e);
 				}
@@ -229,15 +257,18 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		return resp;
 	}
 	
-	private void createContainer(List<Container> containers, AtomicInteger count, Integer patientId) throws IOException {
+	private void createContainer(List<Container> containers, AtomicInteger count, Integer patientId, String reportFolder)
+	        throws IOException {
 		Patient patient = patientService.getPatient(patientId);
-		System.out.println(count.getAndIncrement());
-		Container container = new Container();
-		Date[] touchTimeDate = new Date[1];
-		touchTimeDate[0] = patient.getDateChanged() != null ? patient.getDateChanged() : patient.getDateCreated();
-		container.setMessageHeader(buildMessageHeader());
-		container.setMessageData(buildMessageData(patient, touchTimeDate));
-		setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container);
+		if (patient != null) {
+			System.out.println(count.getAndIncrement());
+			Container container = new Container();
+			Date[] touchTimeDate = new Date[1];
+			touchTimeDate[0] = patient.getDateChanged() != null ? patient.getDateChanged() : patient.getDateCreated();
+			container.setMessageHeader(buildMessageHeader());
+			container.setMessageData(buildMessageData(patient, touchTimeDate));
+			setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container, reportFolder);
+		}
 	}
 	
 	private void createContainerFromLastSyncDate(List<Container> containers, AtomicInteger count, Integer patientId,
@@ -249,19 +280,20 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		Container container = new Container();
 		container.setMessageData(buildMessageDataFromLastSync(patient, touchTimeDate, from, to));
 		container.setMessageHeader(buildMessageHeader());
-		setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container);
+		//		setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container, reportFolder); //todo
 	}
 	
 	private void setContainerTouchTimeAndFileName(List<Container> containers, Patient patient, Date[] touchTimes,
-	        Container container) throws IOException {
+	        Container container, String reportFolder) throws IOException {
 		container.setId(patient.getUuid());
 		container.getMessageHeader().setTouchTime(touchTimes[0]);
 		SimpleDateFormat df = new SimpleDateFormat("yyyyMMddHHmmss");
 		String touchTimeString = df.format(container.getMessageHeader().getTouchTime());
 		String fileName = patient.getUuid() + "_" + touchTimeString + "_" + datimCode + ".json";
 		container.getMessageHeader().setFileName(fileName);
+		System.out.println("Touch time: " + touchTimeString);
 		
-		writeContainerToFile(container, fileName);
+		writeContainerToFile(container, fileName, reportFolder);
 		
 		//		containers.add(container);
 		//		if (containers.size() == 50) {
@@ -277,9 +309,9 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		//		}
 	}
 	
-	private void writeContainerToFile(Container container, String fileName) throws IOException {
+	private void writeContainerToFile(Container container, String fileName, String reportFolder) throws IOException {
 		
-		File folder = new File(folderPath);
+		File folder = new File(reportFolder);
 		
 		File dir = new File(folder, "jsonFiles");
 		if (!dir.exists() && !dir.mkdirs()) {
@@ -291,8 +323,11 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		
 		if (dir.listFiles() != null && Objects.requireNonNull(dir.listFiles()).length == 10000) {
 			try {
+				String facility = facilityName.replaceAll(" ", "_");
+				String dateString = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
 				ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(Paths.get(folder.getAbsolutePath(),
-				    partnerShortName + "_" + datimCode + "_" + facilityName + "_" + new Date().getTime() + ".zip")));
+				    partnerShortName + "_" + datimCode + "_" + facility + "_" + dateString + "_" + new Date().getTime()
+				            + ".zip")));
 				zipDirectory(dir, dir.getName(), zos);
 				zos.close();
 				FileUtils.cleanDirectory(dir);
@@ -843,7 +878,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	//    }
 	
 	private void buildContainerObsType(Patient patient, Date[] touchTimes, List<ObsType> obsTypeList, List<Obs> obsList) {
-        List<Integer> confidentialConcepts = new ArrayList<>(Arrays.asList(159635, 162729, 160638, 160641, 160642)); //todo get from global property
+        List<Integer> confidentialConcepts = AppUtil.getConfidentialConcepts(); //todo get from global property
         obsList.forEach(obs -> {
             ObsType obsType = new ObsType();
             obsType.setPatientUuid(patient.getUuid());
@@ -853,8 +888,8 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             obsType.setPersonId(obs.getPersonId());
 			try {
 				obsType.setConceptId(obs.getConcept() != null ? obs.getConcept().getConceptId() : 0);
-				obsType.setVariableName(obs.getConcept() != null ? obs.getConcept().getName().getName() : "");
-				obsType.setDatatype(obs.getConcept() != null ? obs.getConcept().getDatatype().getConceptDatatypeId() : 0);
+				obsType.setVariableName(obs.getConcept() != null ? obs.getConcept().getName() != null ? obs.getConcept().getName().getName() : "" : "");
+				obsType.setDatatype(obs.getConcept() != null ? obs.getConcept().getDatatype() != null ? obs.getConcept().getDatatype().getConceptDatatypeId() : 0 : 0);
 			} catch (Exception e) {
 				System.out.println("Error getting concept name");
 			}
@@ -883,19 +918,24 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
                     BigDecimal.valueOf(obs.getValueNumeric()) : null);
             if (confidentialConcepts.contains(obsType.getConceptId())) {
                 obsType.setValueText(obs.getValueText() != null ? Security.encrypt(obs.getValueText()) : "");
-                obsType.setVariableValue(obs.getValueCoded() != null ?
+                obsType.setVariableValue(obs.getValueCoded() != null ? obs.getValueCoded().getName() != null ?
                         Security.encrypt(obs.getValueCoded().getName().getName()) : obs.getValueText() != null ?
                         Security.encrypt(obs.getValueText()) : obs.getValueDatetime() != null ?
                         Security.encrypt(String.valueOf(obs.getValueDatetime())) : obs.getValueNumeric() != null ?
-                        Security.encrypt(String.valueOf(obs.getValueNumeric())) : "");
+                        Security.encrypt(String.valueOf(obs.getValueNumeric())) : "" : "");
             } else {
                 obsType.setValueText(obs.getValueText());
-                obsType.setVariableValue(obs.getValueCoded() != null ?
-                        obs.getValueCoded().getName().getName() : obs.getValueText() != null ?
-                        obs.getValueText() : obs.getValueDatetime() != null ?
-                        String.valueOf(obs.getValueDatetime()) : obs.getValueNumeric() != null ?
-                        String.valueOf(obs.getValueNumeric()) : "");
-            }
+				try {
+					obsType.setVariableValue(obs.getValueCoded() != null ?
+							obs.getValueCoded().getName() != null ? obs.getValueCoded().getName().getName() : obs.getValueText() != null ?
+									obs.getValueText() : obs.getValueDatetime() != null ?
+									String.valueOf(obs.getValueDatetime()) : obs.getValueNumeric() != null ?
+									String.valueOf(obs.getValueNumeric()) : "" : "");
+				} catch (Exception e) {
+					System.out.println("error get concept id: " + e.getMessage());
+				}
+
+			}
             obsType.setCreator(obs.getCreator() != null ? obs.getCreator().getId() : 0);
             obsType.setDateCreated(obs.getDateCreated());
 

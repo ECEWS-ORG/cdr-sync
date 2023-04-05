@@ -10,7 +10,7 @@
         "type": "link",
         "label": "CDR Sync",
         "url": "cdrsync/cdrsync.page",
-        "icon": "icon-envelope"
+        "icon": "icon-refresh"
       }
     ]
   }

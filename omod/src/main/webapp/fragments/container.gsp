@@ -88,19 +88,11 @@
     var jq = jQuery;
     jq("#custom_date").hide();
 
-    jq(document).ajaxStart(function() {
-        jq("#overlay").fadeIn(300);
-    }).ajaxComplete(function (){
-        setTimeout(function(){
-            jq("#overlay").fadeOut(300);
-        },500);
-    });
-
     jq("#initial").click(function(){
         alert("Syncing from inception");
-        window.onbeforeunload = function() {
-            return "Dude, are you sure you want to leave? Think of the kittens!";
-        };
+        // window.onbeforeunload = function() {
+        //     return "Dude, are you sure you want to leave? Think of the kittens!";
+        // };
         patientCountFromInitial().then(resp => {
             var count = resp.body;
             console.log("Total patients to sync: " + count);
@@ -109,7 +101,7 @@
                     var response = resp.body.split("/");
                     var start = parseInt(response[0]);
                     var id = response[1];
-                    var length = 500;
+                    var length = count < 500 ? count : 500;
                     alert("Syncing from " + start + " to " + count);
                     jq('#overlay').fadeIn(300);
                     if (id === 0) {
@@ -137,14 +129,14 @@
             jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
                 "<p>Currently zipping extracted files</p>");
         } else {
+            var percentage = Math.round((start/total)*100);
             jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
-                "<p>Extracting from "+ start + " to " + (start + length)+ " of " + total +" patients</p>");
+                // "<p>Extracting from "+ start + " to " + (start + length)+ " of " + total +" patients</p>");
+                "<p>"+ percentage + "% of " + total +" patients</p>");
         }
-        // jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
-        //     "<p>Extracting from "+ start + " to " + (start + length)+ " of " + total +" patients</p>");
         syncInitial(total, start, length, id).then(resp => {
             serverResponse = resp.body;
-            if (serverResponse !== "Sync complete!" &&
+            if (serverResponse.indexOf("Sync complete!") === -1 &&
                 serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
                 serverResponse !== "Incomplete syncing, try again later!")
             {
@@ -155,6 +147,25 @@
                 }
                 updateCdrSyncBatch(start, "INITIAL", id, total);
                 batchSyncFromInitial(total, start, length, id);
+            } else if (serverResponse.indexOf("Sync complete!") >= 0) {
+                var response = serverResponse.split(",");
+                serverResponse = response[0];
+                var zipFiles = response[1].split("&&");
+                console.log(zipFiles);
+                jq('#message').html("<p>"+serverResponse+"</p>" +
+                    "<p>Click the download button(s) below or copy and paste the file locations on the browser to download the extracted files</p><br>"
+                );
+                for (var i = 0; i < zipFiles.length; i++) {
+                    if (zipFiles[i] !== "") {
+                        jq('#message').append("<p>" + zipFiles[i] + "</p>");
+                        jq('#message').append("<button onclick=downloadFile('" + zipFiles[i] +"') >Download</button>");
+                        // jq('#message').append("<a href='" + zipFiles[i] + "' download>Download</a>");
+                    }
+                }
+                setTimeout(function(){
+                    jq("#overlay").fadeOut(300);
+                },500);
+                // jq('#message').html("<p>"+serverResponse+" and downloaded</p>");
             } else {
                 setTimeout(function(){
                     jq("#overlay").fadeOut(300);
@@ -182,7 +193,7 @@
                     var response = resp.body.split("/");
                     var start = parseInt(response[0]);
                     var id = response[1];
-                    var length = 500;
+                    var length = count < 500 ? count : 500;
                     alert("Syncing from " + start + " to " + count);
                     jq('#overlay').fadeIn(300);
                     if (id === 0) {
@@ -210,12 +221,14 @@
             jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
                 "<p>Currently zipping extracted files</p>");
         } else {
+            var percentage = Math.round((start/totalPatients)*100);
             jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
-                "<p>Extracting from "+ start + " to " + (start + length)+ " of " + totalPatients +" patients</p>");
+                // "<p>Extracting from "+ start + " to " + (start + length)+ " of " + total +" patients</p>");
+                "<p>"+ percentage + "% of " + totalPatients +" patients</p>");
         }
         syncUpdate(totalPatients, start, length, id).then(resp => {
             serverResponse = resp.body;
-            if (serverResponse !== "Sync complete!" &&
+            if (serverResponse.indexOf("Sync complete!") === -1  &&
                 serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
                 serverResponse !== "Incomplete syncing, try again later!")
             {
@@ -226,13 +239,35 @@
                 }
                 updateCdrSyncBatch(start, "INCREMENTAL", id, totalPatients);
                 batchSyncFromLastSync(totalPatients, start, length, id);
+            } else if (serverResponse.indexOf("Sync complete!") >= 0) {
+                var response = serverResponse.split(",");
+                serverResponse = response[0];
+                var zipFiles = response[1].split("&&");
+                console.log(zipFiles);
+                jq('#message').html("<p>"+serverResponse+"</p>" +
+                    "<p>Click the download button(s) below or copy and paste the file locations on the browser to download the extracted files</p><br>"
+                );
+                for (var i = 0; i < zipFiles.length; i++) {
+                    if (zipFiles[i] !== "") {
+                        jq('#message').append("<p>" + zipFiles[i] + "</p>");
+                        jq('#message').append("<button onclick=downloadFile('" + zipFiles[i] +"') >Download</button>");
+                        // jq('#message').append("<a href='" + zipFiles[i] + "' download>Download</a>");
+                    }
+                }
+                setTimeout(function(){
+                    jq("#overlay").fadeOut(300);
+                },500);
+                // jq('#message').html("<p>"+serverResponse+" and downloaded</p>");
             } else {
+                setTimeout(function(){
+                    jq("#overlay").fadeOut(300);
+                },500);
                 jq('#message').html("<p>"+serverResponse+"</p>");
             }
-            // if (serverResponse === "Sync complete!") {
-            //     saveSyncDate();
-            // }
         }, error => {
+            setTimeout(function(){
+                jq("#overlay").fadeOut(300);
+            },500);
             console.log(error);
             alert(error.statusText);
         });
@@ -257,7 +292,7 @@
                             var response = resp.body.split("/");
                             var start = parseInt(response[0]);
                             var id = response[1];
-                            var length = 500;
+                            var length = count < 500 ? count : 500;
                             alert("Syncing from " + start + " to " + count);
                             jq('#overlay').fadeIn(300);
                             if (id === 0) {
@@ -267,7 +302,6 @@
                             }
                             batchSyncFromCustomDate(startDate, endDate, count, start, length, id);
                         })
-                        // batchSyncFromCustomDate(startDate, endDate, count, start, length);
                     } else {
                         alert("No new patients to sync");
                     }
@@ -275,18 +309,6 @@
                     console.log(error);
                     alert(error.statusText);
                 });
-                // var start = 0;
-                // var length = 500;
-                //
-                // batchSyncFromCustomDate(startDate, endDate, start, length);
-
-                // syncCustom(startDate, endDate).then(resp => {
-                //     if(resp.body === "Sync successful!") {
-                //         saveSyncDate();
-                //     }
-                //     // alert(data);
-                //     jq('#message').html("<p>"+resp.body+"</p>");
-                // }, error => console.log(error));
             }
         });
     });
@@ -299,12 +321,14 @@
             jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
                 "<p>Currently zipping extracted files</p>");
         } else {
+            var percentage = Math.round((start/total)*100);
             jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
-                "<p>Extracting from "+ start + " to " + (start + length)+ " of " + total +" patients</p>");
+                // "<p>Extracting from "+ start + " to " + (start + length)+ " of " + total +" patients</p>");
+                "<p>"+ percentage + "% of " + total +" patients</p>");
         }
         syncCustom(from, to, total, start, length, id).then(resp => {
             serverResponse = resp.body;
-            if (serverResponse !== "Sync complete!" &&
+            if (serverResponse.indexOf("Sync complete!") === -1 &&
                 serverResponse !== "There's a problem connecting to the server. Please, check your connection and try again." &&
                 serverResponse !== "Incomplete syncing, try again later!")
             {
@@ -315,16 +339,46 @@
                 }
                 updateCdrSyncBatch(start, "CUSTOM", id, total);
                 batchSyncFromCustomDate(from, to, total, start, length, id);
+            } else if (serverResponse.indexOf("Sync complete!") >= 0) {
+                var response = serverResponse.split(",");
+                serverResponse = response[0];
+                var zipFiles = response[1].split("&&");
+                console.log(zipFiles);
+                jq('#message').html("<p>"+serverResponse+"</p>" +
+                    "<p>Click the download button(s) below or copy and paste the file locations on the browser to download the extracted files</p><br>"
+                );
+                for (var i = 0; i < zipFiles.length; i++) {
+                    if (zipFiles[i] !== "") {
+                        jq('#message').append("<p>" + zipFiles[i] + "</p>");
+                        jq('#message').append("<button onclick=downloadFile('" + zipFiles[i] +"') >Download</button>");
+                        // jq('#message').append("<a href='" + zipFiles[i] + "' download>Download</a>");
+                    }
+                }
+                setTimeout(function(){
+                    jq("#overlay").fadeOut(300);
+                },500);
+                // jq('#message').html("<p>"+serverResponse+" and downloaded</p>");
             } else {
+                setTimeout(function(){
+                    jq("#overlay").fadeOut(300);
+                },500);
                 jq('#message').html("<p>"+serverResponse+"</p>");
             }
             // if (serverResponse === "Sync complete!") {
             //     saveSyncDate();
             // }
         }, error => {
+            setTimeout(function(){
+                jq("#overlay").fadeOut(300);
+            },500);
             console.log(error);
             alert(error.statusText);
         });
+    }
+
+    function downloadFile(fileName) {
+        console.log("Downloading " + fileName);
+        window.location = fileName;
     }
 
     function syncUpdate(total, start, length, id) {
@@ -424,24 +478,4 @@
             }
         })
     }
-
-    let screenLock;
-
-    function isScreenLockSupported() {
-        return ('wakeLock' in navigator);
-    }
-
-    document.addEventListener('visibilitychange', async () => {
-        if (screenLock !== null && document.visibilityState === 'visible') {
-            screenLock = await navigator.wakeLock.request('screen');
-        }
-    });
-
-    screenLock.onrelease = () => {
-        console.log("Lock released 🎈");
-    };
-    // You can also use addEventListener
-    screenLock.addEventListener('release', () => {
-        console.log("Lock released 🎈");
-    });
 </script>

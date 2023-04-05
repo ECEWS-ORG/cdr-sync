@@ -11,11 +11,19 @@ import org.openmrs.module.cdrsync.model.enums.SyncStatus;
 import org.openmrs.module.cdrsync.model.enums.SyncType;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.fragment.FragmentModel;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -113,8 +121,6 @@ public class ContainerFragmentController {
 	public void updateCdrSyncBatch(@RequestParam(value = "type") String type,
 	        @RequestParam(value = "processed") String processed, @RequestParam(value = "id") String id,
 	        @RequestParam(value = "total") String total) {
-		//		CdrSyncBatch cdrSyncBatch = Context.getService(CdrSyncAdminService.class).getCdrSyncBatchByStatusAndOwner(
-		//		    SyncStatus.IN_PROGRESS.name(), user.getUsername(), type);
 		int processedPatients = Integer.parseInt(processed);
 		int batchId = Integer.parseInt(id);
 		int totalPatients = Integer.parseInt(total);
@@ -129,17 +135,22 @@ public class ContainerFragmentController {
 		System.out.println("Updated batch::" + cdrSyncBatch1.getPatientsProcessed());
 	}
 	
-	public ResponseEntity<String> getPatientsFromInitial(@RequestParam(value = "start") String start,
-	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total,
-	        @RequestParam(value = "id") String id) throws IOException {
+	public ResponseEntity<String> getPatientsFromInitial(HttpServletRequest request,
+	        @RequestParam(value = "start") String start, @RequestParam(value = "length") String length,
+	        @RequestParam(value = "total") String total, @RequestParam(value = "id") String id) throws IOException {
 		System.out.println("From initial::" + start + " " + length);
 		String response;
 		int startPoint = Integer.parseInt(start);
 		long totalPatients = Long.parseLong(total);
 		int lengthOfPatients = Integer.parseInt(length);
 		int batchId = Integer.parseInt(id);
-		response = containerService.getAllPatients(totalPatients, startPoint, lengthOfPatients, SyncType.INITIAL.name());
-		if (response.equals("Sync complete!")) {
+		String contextPath = request.getContextPath();
+		System.out.println("context path: " + contextPath);
+		String fullContextPath = request.getSession().getServletContext().getRealPath(contextPath);
+		System.out.println("full context path: " + fullContextPath);
+		response = containerService.getAllPatients(totalPatients, startPoint, lengthOfPatients, SyncType.INITIAL.name(),
+		    fullContextPath);
+		if (response.contains("Sync complete!")) {
 			cdrSyncBatch1 = new CdrSyncBatch();
 			cdrSyncBatch1.setId(batchId);
 			cdrSyncBatch1.setDateCompleted(new Date());
@@ -153,19 +164,21 @@ public class ContainerFragmentController {
 		return new ResponseEntity<String>(response, HttpStatus.OK);
 	}
 	
-	public ResponseEntity<String> getPatientsFromLastSync(@RequestParam(value = "start") String start,
-	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total,
-	        @RequestParam(value = "id") String id) throws IOException {
+	public ResponseEntity<String> getPatientsFromLastSync(HttpServletRequest request,
+	        @RequestParam(value = "start") String start, @RequestParam(value = "length") String length,
+	        @RequestParam(value = "total") String total, @RequestParam(value = "id") String id) throws IOException {
 		String lastSync = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
 		System.out.println("From db::" + lastSync);
 		String response;
+		String contextPath = request.getContextPath();
+		String fullContextPath = request.getSession().getServletContext().getRealPath(contextPath);
 		if (lastSync != null && !lastSync.isEmpty()) {
 			try {
 				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
 				Date lastSyncDate = dateFormat.parse(lastSync);
 				System.out.println("Last sync date::" + lastSyncDate);
 				response = containerService.getAllPatients(Long.valueOf(total), lastSyncDate, new Date(),
-				    Integer.parseInt(start), Integer.parseInt(length), SyncType.INCREMENTAL.name());
+				    Integer.parseInt(start), Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath);
 				return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 			}
 			catch (ParseException e) {
@@ -181,14 +194,14 @@ public class ContainerFragmentController {
 			
 		} else {
 			response = containerService.getAllPatients(Long.parseLong(total), Integer.parseInt(start),
-			    Integer.parseInt(length), SyncType.INCREMENTAL.name());
+			    Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath);
 			return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 		}
 	}
 	
 	private ResponseEntity<String> checkIfSyncHasCompletedAndUpdateSyncBatch(String start, String total, String id,
 	        String response) {
-		if (response.equals("Sync complete!")) {
+		if (response.contains("Sync complete!")) {
 			updateSyncBatch(start, total, id);
 			cdrSyncBatch1.setSyncType(SyncType.INCREMENTAL.name());
 			Context.getService(CdrSyncAdminService.class).saveCdrSyncBatch(cdrSyncBatch1);
@@ -196,17 +209,20 @@ public class ContainerFragmentController {
 		return new ResponseEntity<String>(response, HttpStatus.OK);
 	}
 	
-	public ResponseEntity<String> getPatientsFromCustomDate(@RequestParam(value = "from") String from,
-	        @RequestParam(value = "to") String to, @RequestParam(value = "start") String start,
-	        @RequestParam(value = "length") String length, @RequestParam(value = "total") String total,
-	        @RequestParam(value = "id") String id) throws ParseException, IOException {
+	public ResponseEntity<String> getPatientsFromCustomDate(HttpServletRequest request,
+	        @RequestParam(value = "from") String from, @RequestParam(value = "to") String to,
+	        @RequestParam(value = "start") String start, @RequestParam(value = "length") String length,
+	        @RequestParam(value = "total") String total, @RequestParam(value = "id") String id) throws ParseException,
+	        IOException {
 		System.out.println(from + ":::" + to);
 		DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
 		Date startDate = dateFormat.parse(from);
 		Date endDate = dateFormat.parse(to);
+		String contextPath = request.getContextPath();
+		String fullContextPath = request.getSession().getServletContext().getRealPath(contextPath);
 		String response = containerService.getAllPatients(Long.parseLong(total), startDate, endDate,
-		    Integer.parseInt(start), Integer.parseInt(length), SyncType.CUSTOM.name());
-		if (response.equals("Sync complete!")) {
+		    Integer.parseInt(start), Integer.parseInt(length), SyncType.CUSTOM.name(), fullContextPath);
+		if (response.contains("Sync complete!")) {
 			updateSyncBatch(start, total, id);
 			cdrSyncBatch1.setSyncType(SyncType.CUSTOM.name());
 			Context.getService(CdrSyncAdminService.class).saveCdrSyncBatch(cdrSyncBatch1);
@@ -226,5 +242,52 @@ public class ContainerFragmentController {
 	
 	public void saveLastSync() {
 		containerService.saveLastSyncDate();
+	}
+	
+	public void downloadFile(@RequestParam(value = "filePath") String filePath, HttpServletResponse response) {
+		System.out.println("File path::" + filePath);
+		File file = new File(filePath);
+		if (!file.exists()) {
+			String errorMessage = "Sorry. The file you are looking for does not exist";
+			System.out.println(errorMessage);
+			OutputStream outputStream;
+			try {
+				outputStream = response.getOutputStream();
+				outputStream.write(errorMessage.getBytes(Charset.forName("UTF-8")));
+				outputStream.close();
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+			//			return new ResponseEntity<String>(errorMessage, HttpStatus.NOT_FOUND);
+		}
+		
+		// Set the response headers
+		response.setContentType("application/zip");
+		response.setHeader("Content-Disposition", "attachment;filename=" + file.getName());
+		System.out.println("File name::" + file.getName());
+		
+		// Create a buffer for reading the file
+		byte[] buffer = new byte[1024];
+		
+		try {
+			//			InputStreamResource resource = new InputStreamResource(new FileInputStream(file));
+			// Read the file contents and write them to the response output stream
+			FileInputStream fileIn = new FileInputStream(filePath);
+			OutputStream outStream = response.getOutputStream();
+			
+			int len;
+			while ((len = fileIn.read(buffer)) > 0) {
+				outStream.write(buffer, 0, len);
+			}
+			
+			fileIn.close();
+			outStream.flush();
+			//			return new ResponseEntity<Resource>(resource, HttpStatus.OK);
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+			//			return new ResponseEntity<String>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+		}
 	}
 }
