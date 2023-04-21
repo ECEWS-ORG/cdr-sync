@@ -9,7 +9,9 @@ public interface CdrSyncAdminService extends AdministrationService {
 	
 	void updateLastSyncGlobalProperty(String propertyName, String propertyValue);
 	
-	CdrSyncBatch saveCdrSyncBatch(CdrSyncBatch cdrSyncBatch);
+	void saveCdrSyncBatch(CdrSyncBatch cdrSyncBatch);
+	
+	void updateCdrSyncBatchStatus(int batchId, String status, int patientsProcessed, boolean done);
 	
 	CdrSyncBatch getCdrSyncBatchByStatusAndOwner(String status, String owner, String syncType);
 	

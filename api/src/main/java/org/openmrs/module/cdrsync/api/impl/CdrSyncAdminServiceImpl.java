@@ -21,8 +21,13 @@ public class CdrSyncAdminServiceImpl extends AdministrationServiceImpl implement
 	}
 	
 	@Override
-	public CdrSyncBatch saveCdrSyncBatch(CdrSyncBatch cdrSyncBatch) {
-		return syncAdminDao.saveCdrSyncBatch(cdrSyncBatch);
+	public void saveCdrSyncBatch(CdrSyncBatch cdrSyncBatch) {
+		syncAdminDao.saveCdrSyncBatch(cdrSyncBatch);
+	}
+	
+	@Override
+	public void updateCdrSyncBatchStatus(int batchId, String status, int patientsProcessed, boolean done) {
+		syncAdminDao.updateCdrSyncBatchStatus(batchId, status, patientsProcessed, done);
 	}
 	
 	@Override

@@ -9,6 +9,7 @@ import org.openmrs.api.db.hibernate.HibernateAdministrationDAO;
 import org.openmrs.module.cdrsync.api.dao.CdrSyncAdminDao;
 import org.openmrs.module.cdrsync.model.CdrSyncBatch;
 
+import java.util.Date;
 import java.util.List;
 
 @SuppressWarnings("unchecked")
@@ -30,10 +31,41 @@ public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements C
 		System.out.println("Finished updating::" + s);
 	}
 	
-	public CdrSyncBatch saveCdrSyncBatch(CdrSyncBatch cdrSyncBatch) {
+	@Override
+	public void saveCdrSyncBatch(CdrSyncBatch cdrSyncBatch) {
 		System.out.println("Custom Saving the CDR Sync Batch");
-		this.sessionFactory.getCurrentSession().saveOrUpdate(cdrSyncBatch);
-		return cdrSyncBatch;
+		//		this.sessionFactory.getCurrentSession().saveOrUpdate(cdrSyncBatch);
+		String query = "insert into cdr_sync_batch (status, owner_username, sync_type, "
+		        + "total_number_of_patients_processed, total_number_of_patients, date_started, date_completed) values (:status, :ownerUsername, "
+		        + ":syncType, :totalNumberOfPatientsProcessed, :totalNumberOfPatients, :dateStarted, :dateCompleted)";
+		Query q = sessionFactory.getCurrentSession().createSQLQuery(query);
+		q.setParameter("status", cdrSyncBatch.getStatus());
+		q.setParameter("ownerUsername", cdrSyncBatch.getOwnerUsername());
+		q.setParameter("syncType", cdrSyncBatch.getSyncType());
+		q.setParameter("totalNumberOfPatientsProcessed", cdrSyncBatch.getPatientsProcessed());
+		q.setParameter("totalNumberOfPatients", cdrSyncBatch.getPatients());
+		q.setParameter("dateStarted", cdrSyncBatch.getDateStarted());
+		q.setParameter("dateCompleted", null);
+		q.executeUpdate();
+	}
+	
+	@Override
+	public void updateCdrSyncBatchStatus(int batchId, String status, int patientsProcessed, boolean done) {
+		StringBuilder query = new StringBuilder("update cdr_sync_batch set status = :status, "
+		        + "total_number_of_patients_processed = :patientsProcessed");
+		if (done) {
+			query.append(", date_completed = :dateCompleted");
+		}
+		query.append(" where cdr_sync_batch_id = :batchId");
+		Query q = sessionFactory.getCurrentSession().createSQLQuery(query.toString());
+		q.setParameter("status", status);
+		q.setParameter("patientsProcessed", patientsProcessed);
+		if (done) {
+			q.setParameter("dateCompleted", new Date());
+		}
+		q.setParameter("batchId", batchId);
+		int i = q.executeUpdate();
+		System.out.println("Finished updating::" + i);
 	}
 	
 	public CdrSyncBatch getCdrSyncBatchByStatusAndOwner(String status, String owner, String syncType) {

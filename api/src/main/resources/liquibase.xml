@@ -55,8 +55,6 @@
             <column name="status" type="varchar(255)" />
             <column name="sync_type" type="varchar(255)" />
         </createTable>
-<!--        <addForeignKeyConstraint constraintName="cdrsync_item_owner_fk" baseTableName="cdrsync_item" baseColumnNames="owner"  referencedTableName="users"-->
-<!--                                 referencedColumnNames="user_id" />-->
     </changeSet>
  
 </databaseChangeLog>
