@@ -10,7 +10,7 @@
     </div>
 </div>
 <div class="container-wrap">
-    <h3>Last Sync Date: <%= lastSyncDate %></h3>
+    <h3>Last Sync Date: <%= lastSyncDate != null ? lastSyncDate : "N/A" %></h3>
     <div id="message"></div>
     <div class="flex-container">
         <div>
@@ -63,20 +63,20 @@
         if (recentSyncBatches != null) {
             for (int i = 0; i < recentSyncBatches.size(); i++) {
     %>
-    <tr>
-        <td><%= recentSyncBatches.get(i).getOwnerUsername() %></td>
-        <td><%= recentSyncBatches.get(i).getPatientsProcessed() %></td>
-        <td><%= recentSyncBatches.get(i).getPatients() %></td>
-        <td><%= recentSyncBatches.get(i).getSyncType() %></td>
-        <td><%= recentSyncBatches.get(i).getStatus() %></td>
-        <td><%= recentSyncBatches.get(i).getDateStarted() %></td>
-        <td><%= recentSyncBatches.get(i).getDateCompleted() %></td>
-        <td>
-            <i style="font-size: 20px;" class="icon-play edit-action" title="resume"></i>
-            <i style="font-size: 20px;" class="icon-remove edit-action" title="delete file"></i>
-            <i style="font-size: 20px;" class="icon-refresh edit-action" title="rerun file"></i>
-        </td>
-    </tr>
+                <tr>
+                    <td><%= recentSyncBatches.get(i).getOwnerUsername() %></td>
+                    <td><%= recentSyncBatches.get(i).getPatientsProcessed() %></td>
+                    <td><%= recentSyncBatches.get(i).getPatients() %></td>
+                    <td><%= recentSyncBatches.get(i).getSyncType() %></td>
+                    <td><%= recentSyncBatches.get(i).getStatus() %></td>
+                    <td><%= recentSyncBatches.get(i).getDateStarted() %></td>
+                    <td><%= recentSyncBatches.get(i).getDateCompleted() %></td>
+                    <td>
+                        <i style="font-size: 20px;" class="icon-play edit-action" title="resume"></i>
+                        <i style="font-size: 20px;" class="icon-remove edit-action" title="delete file"></i>
+                        <i style="font-size: 20px;" class="icon-refresh edit-action" title="rerun file"></i>
+                    </td>
+                </tr>
     <%
             }
         }
@@ -94,25 +94,23 @@
             return "Dude, are you sure you want to leave? Think of the kittens!";
         };
         patientCountFromInitial().then(resp => {
-            var count = resp.body;
-            console.log("Total patients to sync: " + count);
-            if (count > 0) {
-                getPatientsProcessed(count, "INITIAL").then(resp => {
-                    var response = resp.body.split("/");
-                    var start = parseInt(response[0]);
-                    var id = parseInt(response[1]);
-                    var length = count-start < 500 ? count-start : 500;
-                    alert("Syncing from " + start + " to " + count);
+            const totalPatients = resp.body;
+            console.log("Total patients to sync: " + totalPatients);
+            if (totalPatients > 0) {
+                getPatientsProcessed(totalPatients, "INITIAL").then(resp => {
+                    const response = resp.body.split("/");
+                    const start = parseInt(response[0]);
+                    let id = parseInt(response[1]);
+                    const length = totalPatients - start < 500 ? totalPatients - start : 500;
+                    alert("Syncing from " + start + " to " + totalPatients);
                     jq('#overlay').fadeIn(300);
                     if (id === 0) {
-                        getPatientsProcessed(count, "INITIAL").then(resp => {
+                        getPatientsProcessed(totalPatients, "INITIAL").then(resp => {
                             id = parseInt(resp.body.split("/")[1]);
-                            alert("id: " + id);
-                            batchSyncFromInitial(count, start, length, id);
+                            batchSyncFromInitial(totalPatients, start, length, id);
                         });
                     } else {
-                        alert("id: " + id);
-                        batchSyncFromInitial(count, start, length, id);
+                        batchSyncFromInitial(totalPatients, start, length, id);
                     }
                 })
 
@@ -126,14 +124,14 @@
     });
 
     function batchSyncFromInitial(total, start, length, id) {
-        var serverResponse = "";
+        let serverResponse = "";
         console.log("Syncing from " + start + " to " + (start + length));
 
         if (start >= total) {
             jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
                 "<p>Currently zipping extracted files</p>");
         } else {
-            var percentage = Math.round(((start+length)/total)*100);
+            const percentage = Math.round(((start + length) / total) * 100);
             jq('#message').html("<p>Extracting data for CDR, please don't refresh the page</p>" +
                 "<p>"+ percentage + "% of " + total +" patients</p>");
         }

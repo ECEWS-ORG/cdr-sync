@@ -12,11 +12,11 @@ import org.openmrs.module.cdrsync.model.BiometricInfo;
 
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Logger;
 
 //@Repository
+@SuppressWarnings("unchecked")
 public class BiometricInfoDaoImpl implements BiometricInfoDao {
-	
-	protected final Log log = LogFactory.getLog(this.getClass());
 	
 	private DbSessionFactory sessionFactory;
 	
@@ -33,8 +33,6 @@ public class BiometricInfoDaoImpl implements BiometricInfoDao {
 	
 	@Override
 	public List<BiometricInfo> getBiometricInfoByPatientId(Integer patientId) {
-		//		Query criteria = getSession().createQuery("from BiometricInfo b where b.patientId = :patientId")
-		//				.setParameter("patientId", patientId);
 		Criteria criteria = getSession().createCriteria(BiometricInfo.class);
 		criteria.add(Restrictions.eq("patientId", patientId));
 		return criteria.list();

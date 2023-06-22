@@ -70,9 +70,7 @@ public class AppUtil {
 	
 	public static String ensureReportDirectoryExists(String contextPath, String reportName, int start) {
 		String downloadDirectory = ensureDownloadDirectoryExists(contextPath);
-		System.out.println("downloadDirectory = " + downloadDirectory);
 		String reportDirectory = Paths.get(downloadDirectory, reportName).toString();
-		System.out.println("reportDirectory = " + reportDirectory);
 		File file = new File(reportDirectory);
 		if (!file.exists() && !file.mkdirs()) {
 			throw new RuntimeException("Unable to create report directory");

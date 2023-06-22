@@ -14,10 +14,13 @@ import org.openmrs.module.cdrsync.model.DatimMap;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 @SuppressWarnings("unchecked")
 public class CdrSyncPatientDaoImpl extends HibernatePatientDAO implements CdrSyncPatientDao {
+	
+	private final Logger log = Logger.getLogger(this.getClass().getName());
 	
 	DbSessionFactory sessionFactory;
 	

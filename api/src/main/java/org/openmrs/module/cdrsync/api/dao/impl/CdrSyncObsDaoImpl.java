@@ -10,8 +10,12 @@ import org.openmrs.module.cdrsync.api.dao.CdrSyncObsDao;
 
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Logger;
 
+@SuppressWarnings("unchecked")
 public class CdrSyncObsDaoImpl extends HibernateObsDAO implements CdrSyncObsDao {
+	
+	private final Logger log = Logger.getLogger(this.getClass().getName());
 	
 	DbSessionFactory sessionFactory;
 	

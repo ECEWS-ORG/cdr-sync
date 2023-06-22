@@ -11,9 +11,12 @@ import org.openmrs.module.cdrsync.model.CdrSyncBatch;
 
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Logger;
 
 @SuppressWarnings("unchecked")
 public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements CdrSyncAdminDao {
+	
+	private final Logger log = Logger.getLogger(this.getClass().getName());
 	
 	DbSessionFactory sessionFactory;
 	
@@ -23,17 +26,15 @@ public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements C
 	
 	@Override
 	public void updateLastSyncGlobalProperty(String propertyName, String propertyValue) {
-		System.out.println("Custom Setting the global property");
 		Query query = sessionFactory.getCurrentSession()
 		        .createQuery("UPDATE GlobalProperty SET propertyValue = :propertyValue WHERE property = :propertyName")
 		        .setParameter("propertyName", propertyName).setParameter("propertyValue", propertyValue);
 		int s = query.executeUpdate();
-		System.out.println("Finished updating::" + s);
+		log.info("Finished updating::" + s);
 	}
 	
 	@Override
 	public void saveCdrSyncBatch(CdrSyncBatch cdrSyncBatch) {
-		System.out.println("Custom Saving the CDR Sync Batch");
 		//		this.sessionFactory.getCurrentSession().saveOrUpdate(cdrSyncBatch);
 		String query = "insert into cdr_sync_batch (status, owner_username, sync_type, "
 		        + "total_number_of_patients_processed, total_number_of_patients, date_started, date_completed) values (:status, :ownerUsername, "
@@ -65,11 +66,10 @@ public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements C
 		}
 		q.setParameter("batchId", batchId);
 		int i = q.executeUpdate();
-		System.out.println("Finished updating::" + i);
+		log.info("Finished updating::" + i);
 	}
 	
 	public CdrSyncBatch getCdrSyncBatchByStatusAndOwner(String status, String owner, String syncType) {
-		System.out.println("Custom Getting the CDR Sync Batch");
 		Criteria criteria = sessionFactory.getCurrentSession().createCriteria(CdrSyncBatch.class);
 		criteria.add(Restrictions.eq("status", status));
 		criteria.add(Restrictions.eq("ownerUsername", owner));
@@ -78,7 +78,6 @@ public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements C
 	}
 	
 	public List<CdrSyncBatch> getRecentSyncBatches() {
-		System.out.println("Custom Getting the CDR Sync Batch");
 		Criteria criteria = sessionFactory.getCurrentSession().createCriteria(CdrSyncBatch.class);
 		criteria.addOrder(Order.desc("dateStarted"));
 		criteria.setMaxResults(10);

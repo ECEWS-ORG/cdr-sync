@@ -18,17 +18,20 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Logger;
 
 import static org.openmrs.module.cdrsync.utils.AppUtil.zipFolder;
 
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
-
+	
+	Logger logger = Logger.getLogger(this.getClass().getName());
+	
 	private static final ObjectMapper objectMapper;
-
+	
 	private final ContainerService containerService;
 	
-	public CdrContainerServiceImpl(ContainerService containerService) {
-		this.containerService = containerService;
+	public CdrContainerServiceImpl() {
+		this.containerService = new ContainerServiceImpl();
 	}
 	
 	static {
@@ -36,7 +39,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 		objectMapper.setDateFormat(df);
 	}
-
+	
 	@Override
 	public String getAllPatients(long patientCount, int start, int length, String type, String fullContextPath,
 	        String contextPath) {
@@ -88,7 +91,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
             patients.forEach(patient ->
 					containerService.createContainerFromLastSyncDate(containers, count, patient, from, to));
         } catch (RuntimeException e) {
-            System.out.println(e.getMessage());
+            logger.severe(e.getMessage());
             e.printStackTrace();
             resp = "There's a problem connecting to the server. Please, check your connection and try again.";
             return resp;
@@ -121,7 +124,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 				}
 			});
 		} catch (RuntimeException e) {
-			System.out.println(e.getMessage());
+			logger.severe(e.getMessage());
 			e.printStackTrace();
 			resp = "There's a problem connecting to the server. Please, check your connection and try again.";
 			return resp;
@@ -139,7 +142,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 			resp = "Sync successful!";
 		return resp;
 	}
-
+	
 	@Override
 	public void saveLastSyncDate() {
 		Date syncDate = new Date();
@@ -150,6 +153,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 			Context.getAdministrationService().saveGlobalProperty(globalProperty);
 		} else
 			Context.getAdministrationService().updateGlobalProperty("last.cdr.sync", syncDateString);
+		logger.info("Last sync date to CDR: " + syncDateString);
 	}
 	
 	@Override

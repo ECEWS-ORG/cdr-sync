@@ -2,13 +2,13 @@
   {
     "id": "${project.parent.artifactId}.cdrSyncApp",
     "description": "EMR-CDR Synchronization",
-    "order": 20,
+    "order": 21,
     "extensions": [
       {
         "id": "cdrsync.homepageLink",
         "extensionPointId": "org.openmrs.referenceapplication.homepageLink",
         "type": "link",
-        "label": "CDR Sync",
+        "label": "EMR-CDR SYNC",
         "url": "cdrsync/cdrsync.page",
         "icon": "icon-refresh"
       }
