@@ -10,6 +10,7 @@ import org.openmrs.module.cdrsync.api.ContainerService;
 import org.openmrs.module.cdrsync.container.model.Container;
 import org.openmrs.module.cdrsync.model.enums.SyncType;
 import org.openmrs.module.cdrsync.utils.AppUtil;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.text.DateFormat;
@@ -22,6 +23,7 @@ import java.util.logging.Logger;
 
 import static org.openmrs.module.cdrsync.utils.AppUtil.zipFolder;
 
+@Transactional
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
 	
 	Logger logger = Logger.getLogger(this.getClass().getName());
@@ -41,6 +43,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	}
 	
 	@Override
+	@Transactional(readOnly = true)
 	public String getAllPatients(long patientCount, int start, int length, String type, String fullContextPath,
 	        String contextPath) {
 		String result;
@@ -82,34 +85,6 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 			return zipFolder(type, reportFolder, contextPath);
 		}
 	}
-	
-	private String buildContainer(List<Integer> patients, Date from, Date to) {
-        List<Container> containers = new ArrayList<>();
-        String resp;
-        AtomicInteger count = new AtomicInteger();
-        try {
-            patients.forEach(patient ->
-					containerService.createContainerFromLastSyncDate(containers, count, patient, from, to));
-        } catch (RuntimeException e) {
-            logger.severe(e.getMessage());
-            e.printStackTrace();
-            resp = "There's a problem connecting to the server. Please, check your connection and try again.";
-            return resp;
-        }
-//        if (!containers.isEmpty()) {
-//            try {
-//                syncContainersToCdr(containers);
-//                containers.clear();
-//                resp = "Sync successful!";
-//            } catch (IOException e) {
-//                System.out.println(e.getMessage());
-//                e.printStackTrace();
-//                resp = "Incomplete syncing, try again later!";
-//            }
-//        } else
-            resp = "Sync successful!";
-        return resp;
-    }
 	
 	private String buildContainer(List<Integer> patientIds, String reportFolder) {
 		List<Container> containers = new ArrayList<>();

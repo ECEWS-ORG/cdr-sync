@@ -16,11 +16,6 @@ public class CdrSyncAdminServiceImpl extends AdministrationServiceImpl implement
 	}
 	
 	@Override
-	public void updateLastSyncGlobalProperty(String propertyName, String propertyValue) {
-		this.syncAdminDao.updateLastSyncGlobalProperty(propertyName, propertyValue);
-	}
-	
-	@Override
 	public void saveCdrSyncBatch(CdrSyncBatch cdrSyncBatch) {
 		syncAdminDao.saveCdrSyncBatch(cdrSyncBatch);
 	}

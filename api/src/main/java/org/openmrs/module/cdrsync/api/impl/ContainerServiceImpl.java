@@ -9,6 +9,7 @@ import org.openmrs.module.cdrsync.container.model.EncounterType;
 import org.openmrs.module.cdrsync.container.model.PatientIdentifierType;
 import org.openmrs.module.cdrsync.container.model.VisitType;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
+import org.openmrs.module.cdrsync.model.BiometricVerificationInfo;
 import org.openmrs.module.cdrsync.model.DatimMap;
 import org.openmrs.module.cdrsync.utils.AppUtil;
 import org.openmrs.util.Security;
@@ -20,7 +21,6 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 import static org.openmrs.module.cdrsync.utils.AppUtil.writeContainerToFile;
 
@@ -62,19 +62,6 @@ public class ContainerServiceImpl implements ContainerService {
 			container.setMessageData(buildMessageData(patient, touchTimeDate));
 			setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container, reportFolder);
 		}
-	}
-	
-	@Override
-	public void createContainerFromLastSyncDate(List<Container> containers, AtomicInteger count, Integer patientId,
-	        Date from, Date to) {
-		Patient patient = Context.getPatientService().getPatient(patientId);
-		Date[] touchTimeDate = new Date[1];
-		touchTimeDate[0] = patient.getDateChanged() != null ? patient.getDateChanged()
-		        : patient.getDateCreated() != null ? patient.getDateCreated() : null;
-		Container container = new Container();
-		container.setMessageData(buildMessageDataFromLastSync(patient, touchTimeDate, from, to));
-		container.setMessageHeader(buildMessageHeader());
-		//		setContainerTouchTimeAndFileName(containers, patient, touchTimeDate, container, reportFolder); //todo
 	}
 	
 	private void setContainerTouchTimeAndFileName(List<Container> containers, Patient patient, Date[] touchTimes,
@@ -128,24 +115,10 @@ public class ContainerServiceImpl implements ContainerService {
         messageDataType.setObs(buildObs(patient, touchTime, obsList));
         messageDataType.setEncounterProviders(buildEncounterProviders(providers, patient, touchTime));
         messageDataType.setPatientBiometrics(buildPatientBiometrics(patient, touchTime));
+        messageDataType.setPatientBiometricVerifications(buildPatientBiometricVerifications(patient, touchTime));
         messageDataType.setPatientPrograms(buildPatientProgram(patient, touchTime));
         messageDataType.setPatientIdentifiers(buildPatientIdentifier(patient, touchTime));
         return messageDataType;
-    }
-	
-	private MessageDataType buildMessageDataFromLastSync(Patient patient, Date[] touchTime, Date from, Date to) {
-        MessageDataType messageData = new MessageDataType();
-        List<EncounterProvider> providers = new ArrayList<>();
-        List<Obs> obsList = new ArrayList<>();
-        messageData.setDemographics(buildDemographics(patient, touchTime));
-        messageData.setVisits(buildVisits(patient, touchTime, from, to));
-        messageData.setEncounters(buildEncounters(patient, providers, touchTime, obsList, from, to));
-        messageData.setObs(buildObs(patient, touchTime, obsList));
-        messageData.setEncounterProviders(buildEncounterProviders(providers, patient, touchTime));
-        messageData.setPatientBiometrics(buildPatientBiometrics(patient, touchTime, from));
-        messageData.setPatientPrograms(buildPatientProgram(patient, touchTime, from, to));
-        messageData.setPatientIdentifiers(buildPatientIdentifier(patient, touchTime, from));
-        return messageData;
     }
 	
 	private DemographicsType buildDemographics(Patient patient, Date[] touchTime) {
@@ -254,15 +227,6 @@ public class ContainerServiceImpl implements ContainerService {
         return visitTypes;
     }
 	
-	private List<VisitType> buildVisits(Patient patient, Date[] touchTimes, Date startDate, Date endDate) {
-        List<VisitType> visitTypes = new ArrayList<>();
-        List<Visit> visits = Context.getService(CdrSyncVisitService.class).getVisitsByPatientAndDateChanged(patient, startDate, endDate);
-        if (visits != null && !visits.isEmpty()) {
-            buildContainerVisitType(patient, touchTimes, visitTypes, visits);
-        }
-        return visitTypes;
-    }
-	
 	private void buildContainerVisitType(Patient patient, Date[] touchTime, List<VisitType> visitTypes, List<Visit> visits) {
         visits.forEach(visit -> {
             VisitType visitType = new VisitType();
@@ -305,15 +269,6 @@ public class ContainerServiceImpl implements ContainerService {
         return patientBiometricTypes;
     }
 	
-	private List<PatientBiometricType> buildPatientBiometrics(Patient patient, Date[] touchTimes, Date startDate) {
-        List<PatientBiometricType> patientBiometricTypes = new ArrayList<>();
-        List<BiometricInfo> biometricInfos = Context.getService(BiometricInfoService.class).getBiometricInfoByPatientIdAndDateCaptured(patient.getPatientId(), startDate);
-        if (biometricInfos != null && !biometricInfos.isEmpty()) {
-            buildContainerBiometricType(patient, touchTimes, patientBiometricTypes, biometricInfos);
-        }
-        return patientBiometricTypes;
-    }
-	
 	private void buildContainerBiometricType(Patient patient, Date[] touchTime, List<PatientBiometricType> patientBiometricTypes, List<BiometricInfo> biometricInfos) {
         biometricInfos.forEach(biometricInfo -> {
             PatientBiometricType patientBiometricType = new PatientBiometricType();
@@ -338,6 +293,42 @@ public class ContainerServiceImpl implements ContainerService {
         });
     }
 	
+	private List<PatientBiometricVerificationType> buildPatientBiometricVerifications(Patient patient, Date[] touchTime) {
+        List<PatientBiometricVerificationType> patientBiometricTypes = new ArrayList<>();
+        List<BiometricVerificationInfo> biometricInfos = Context.getService(BiometricVerificationInfoService.class).getBiometricVerificationInfoByPatientId(patient.getPatientId());
+        if (biometricInfos != null && !biometricInfos.isEmpty()) {
+            buildContainerBiometricVerificationType(patient, touchTime, patientBiometricTypes, biometricInfos);
+        }
+        return patientBiometricTypes;
+    }
+	
+	private void buildContainerBiometricVerificationType(Patient patient, Date[] touchTime, List<PatientBiometricVerificationType> patientBiometricTypes, List<BiometricVerificationInfo> biometricInfos) {
+        biometricInfos.forEach(biometricInfo -> {
+            PatientBiometricVerificationType patientBiometricType = new PatientBiometricVerificationType();
+            patientBiometricType.setBiometricInfoId(biometricInfo.getBiometricInfoId());
+            patientBiometricType.setPatientId(patient.getPatientId());
+            patientBiometricType.setCreator(biometricInfo.getCreator());
+            patientBiometricType.setPatientUuid(patient.getPerson().getUuid());
+            patientBiometricType.setDateCreated(biometricInfo.getDateCreated());
+            patientBiometricType.setDatimId(datimCode);
+            patientBiometricType.setFingerPosition(biometricInfo.getFingerPosition());
+            patientBiometricType.setImageDpi(biometricInfo.getImageDPI());
+            patientBiometricType.setImageHeight(biometricInfo.getImageHeight());
+            patientBiometricType.setImageQuality(biometricInfo.getImageQuality());
+            patientBiometricType.setImageWidth(biometricInfo.getImageWidth());
+            patientBiometricType.setManufacturer(biometricInfo.getManufacturer());
+            patientBiometricType.setModel(biometricInfo.getModel());
+            patientBiometricType.setSerialNumber(biometricInfo.getSerialNumber());
+            patientBiometricType.setTemplate(biometricInfo.getTemplate());
+            patientBiometricType.setEncodedTemplate(biometricInfo.getEncodedTemplate());
+            patientBiometricType.setRecaptureCount(biometricInfo.getRecaptureCount());
+            patientBiometricType.setHashed(biometricInfo.getHashed());
+            patientBiometricTypes.add(patientBiometricType);
+            if (touchTime[0] == null || touchTime[0].before(biometricInfo.getDateCreated()))
+                touchTime[0] = biometricInfo.getDateCreated();
+        });
+    }
+	
 	private List<PatientProgramType> buildPatientProgram(Patient patient, Date[] touchTime) {
         List<PatientProgramType> patientProgramTypes = new ArrayList<>();
         List<PatientProgram> patientPrograms = Context.getProgramWorkflowService().getPatientPrograms(
@@ -345,16 +336,6 @@ public class ContainerServiceImpl implements ContainerService {
         );
         if (patientPrograms != null && !patientPrograms.isEmpty()) {
             buildContainerPatientProgramType(touchTime, patientProgramTypes, patientPrograms);
-        }
-        return patientProgramTypes;
-    }
-	
-	private List<PatientProgramType> buildPatientProgram(Patient patient, Date[] touchTimes, Date from, Date to) {
-        List<PatientProgramType> patientProgramTypes = new ArrayList<>();
-        List<PatientProgram> patientPrograms = Context.getService(CdrSyncPatientProgramService.class)
-                .getPatientProgramsByPatientAndLastSyncDate(patient, from, to);
-        if (patientPrograms != null && !patientPrograms.isEmpty()) {
-            buildContainerPatientProgramType(touchTimes, patientProgramTypes, patientPrograms);
         }
         return patientProgramTypes;
     }
@@ -400,25 +381,6 @@ public class ContainerServiceImpl implements ContainerService {
         return patientIdentifierTypes;
     }
 	
-	private List<PatientIdentifierType> buildPatientIdentifier (Patient patient, Date[] touchTimes, Date lastSyncDate) {
-        List<PatientIdentifierType> patientIdentifierTypes = new ArrayList<>();
-        Set<PatientIdentifier> patientIdentifiers = patient.getIdentifiers();
-        if (patientIdentifiers != null && !patientIdentifiers.isEmpty()) {
-            Set<PatientIdentifier> updatedPatientIdentifiers = patientIdentifiers.stream()
-                    .filter(patientIdentifier -> (patientIdentifier.getDateChanged() != null &&
-                            patientIdentifier.getDateChanged().after(lastSyncDate)) ||
-                            (patientIdentifier.getDateVoided() != null &&
-                                    patientIdentifier.getDateVoided().after(lastSyncDate)) ||
-                            (patientIdentifier.getDateCreated() != null &&
-                                    patientIdentifier.getDateCreated().after(lastSyncDate)))
-                    .collect(Collectors.toSet());
-            if (!updatedPatientIdentifiers.isEmpty()) {
-                buildContainerPatientIdentifier(patient, touchTimes, patientIdentifierTypes, updatedPatientIdentifiers);
-            }
-        }
-        return patientIdentifierTypes;
-    }
-	
 	private void buildContainerPatientIdentifier(Patient patient, Date[] touchTime, List<PatientIdentifierType> patientIdentifierTypes, Set<PatientIdentifier> updatedPatientIdentifiers) {
         updatedPatientIdentifiers.forEach(patientIdentifier -> {
             PatientIdentifierType patientIdentifierType = new PatientIdentifierType();
@@ -449,17 +411,6 @@ public class ContainerServiceImpl implements ContainerService {
         List<Encounter> encounterList = Context.getEncounterService().getEncounters(patient, null, null, null, null, null, null, null, null, true);
         if (encounterList != null && !encounterList.isEmpty())
             buildContainerEncounterType(patient, providers, touchTime, encounterTypes, encounterList, obsList);
-        return encounterTypes;
-    }
-	
-	private List<EncounterType> buildEncounters(
-            Patient patient, List<EncounterProvider> providers, Date[] touchTimes,
-            List<Obs> obsList, Date fromDate, Date toDate) {
-        List<EncounterType> encounterTypes = new ArrayList<>();
-        List<Encounter> encounterList = Context.getService(CdrSyncEncounterService.class).getEncountersByLastSyncDateAndPatient(fromDate, toDate, patient);
-        if (encounterList != null && !encounterList.isEmpty()) {
-            buildContainerEncounterType(patient, providers, touchTimes, encounterTypes, encounterList, obsList);
-        }
         return encounterTypes;
     }
 	

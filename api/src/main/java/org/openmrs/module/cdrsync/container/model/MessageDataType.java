@@ -29,6 +29,18 @@ public class MessageDataType implements Serializable {
 	
 	private List<PatientProgramType> patientPrograms;
 	
+	private List<PatientBiometricVerificationType> patientBiometricVerifications;
+	
+	public List<PatientBiometricVerificationType> getPatientBiometricVerifications() {
+		if (patientBiometricVerifications == null)
+			patientBiometricVerifications = new ArrayList<>();
+		return patientBiometricVerifications;
+	}
+	
+	public void setPatientBiometricVerifications(List<PatientBiometricVerificationType> patientBiometricVerifications) {
+		this.patientBiometricVerifications = patientBiometricVerifications;
+	}
+	
 	public DemographicsType getDemographics() {
 		return demographics;
 	}

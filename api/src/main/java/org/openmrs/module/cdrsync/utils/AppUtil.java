@@ -1,13 +1,13 @@
 package org.openmrs.module.cdrsync.utils;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.util.EntityUtils;
+//import org.apache.http.client.methods.CloseableHttpResponse;
+//import org.apache.http.client.methods.HttpGet;
+//import org.apache.http.client.methods.HttpPost;
+//import org.apache.http.entity.StringEntity;
+//import org.apache.http.impl.client.CloseableHttpClient;
+//import org.apache.http.impl.client.HttpClientBuilder;
+//import org.apache.http.util.EntityUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.User;
 import org.openmrs.api.context.Context;
@@ -185,34 +185,34 @@ public class AppUtil {
 		}
 	}
 	
-	public static void syncContainersToCdr(List<Container> containers) throws IOException {
-		ContainerWrapper containerWrapper = new ContainerWrapper(containers);
-		if (Context.getRuntimeProperties().getProperty("cdr.sync.url") == null) {
-			System.out.println("Setting sync url");
-			Context.getRuntimeProperties().setProperty("cdr.sync.url", "http://localhost:8484/sync-containers");
-		}
-		String url = Context.getRuntimeProperties().getProperty("cdr.sync.url");
-		System.out.println("Syncing to CDR::" + url);
-		try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()){
-			String json = objectMapper.writeValueAsString(containerWrapper);
-			String encryptedJson = Security.encrypt(json);
-			EncryptedBody encryptedBody = new EncryptedBody(encryptedJson);
-			HttpPost post = new HttpPost(url);
-			HttpGet get = new HttpGet(url);
-			get.setHeader("Content-Type", "application/json");
-			post.setHeader("Content-Type", "application/json");
-			post.setEntity(new StringEntity(objectMapper.writeValueAsString(encryptedBody)));
-			try (CloseableHttpResponse response = httpClient.execute(post)){
-				int statusCode = response.getStatusLine().getStatusCode();
-				if (statusCode == 200) {
-					String responseBody = EntityUtils.toString(response.getEntity());
-					System.out.println("After successfully sending request::" + responseBody);
-				} else {
-					System.out.println("error sending request");
-					System.out.println("status code::" + statusCode);
-					throw new IOException("error sending request to cdr");
-				}
-			}
-		}
-	}
+	//	public static void syncContainersToCdr(List<Container> containers) throws IOException {
+	//		ContainerWrapper containerWrapper = new ContainerWrapper(containers);
+	//		if (Context.getRuntimeProperties().getProperty("cdr.sync.url") == null) {
+	//			System.out.println("Setting sync url");
+	//			Context.getRuntimeProperties().setProperty("cdr.sync.url", "http://localhost:8484/sync-containers");
+	//		}
+	//		String url = Context.getRuntimeProperties().getProperty("cdr.sync.url");
+	//		System.out.println("Syncing to CDR::" + url);
+	//		try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()){
+	//			String json = objectMapper.writeValueAsString(containerWrapper);
+	//			String encryptedJson = Security.encrypt(json);
+	//			EncryptedBody encryptedBody = new EncryptedBody(encryptedJson);
+	//			HttpPost post = new HttpPost(url);
+	//			HttpGet get = new HttpGet(url);
+	//			get.setHeader("Content-Type", "application/json");
+	//			post.setHeader("Content-Type", "application/json");
+	//			post.setEntity(new StringEntity(objectMapper.writeValueAsString(encryptedBody)));
+	//			try (CloseableHttpResponse response = httpClient.execute(post)){
+	//				int statusCode = response.getStatusLine().getStatusCode();
+	//				if (statusCode == 200) {
+	//					String responseBody = EntityUtils.toString(response.getEntity());
+	//					System.out.println("After successfully sending request::" + responseBody);
+	//				} else {
+	//					System.out.println("error sending request");
+	//					System.out.println("status code::" + statusCode);
+	//					throw new IOException("error sending request to cdr");
+	//				}
+	//			}
+	//		}
+	//	}
 }

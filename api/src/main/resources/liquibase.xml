@@ -36,7 +36,7 @@
                                  referencedColumnNames="user_id" />
     </changeSet> -->
 
-    <changeSet id="cdrsync-2023-03-10" author="Innocent">
+    <!--<changeSet id="cdrsync-2023-03-10" author="Innocent">
         <preConditions onFail="MARK_RAN">
             <not><tableExists tableName="cdr_sync_batch"/></not>
         </preConditions>
@@ -55,6 +55,12 @@
             <column name="status" type="varchar(255)" />
             <column name="sync_type" type="varchar(255)" />
         </createTable>
+    </changeSet>-->
+    <changeSet id="create_cdr_sync_batch-2023-08-01" author="Innocent">
+        <sqlFile path="sql/cdr_sync_batch.sql"
+                 stripComments="true"
+                 splitStatements="true"
+                 endDelimiter=";"/>
     </changeSet>
  
 </databaseChangeLog>
