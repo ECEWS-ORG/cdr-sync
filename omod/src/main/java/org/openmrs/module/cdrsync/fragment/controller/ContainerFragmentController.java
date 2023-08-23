@@ -29,15 +29,13 @@ public class ContainerFragmentController {
 	
 	private final Logger logger = Logger.getLogger(this.getClass().getName());
 	
-	private final CdrContainerService containerService;
+	private CdrContainerService containerService;
 	
-	public ContainerFragmentController() {
-		containerService = new CdrContainerServiceImpl();
+	private CdrContainerService getContainerService() {
+		if (containerService == null)
+			containerService = new CdrContainerServiceImpl();
+		return containerService;
 	}
-	
-	User user = Context.getAuthenticatedUser();
-	
-	//	CdrContainerService containerService = Context.getService(CdrContainerService.class);
 	
 	public void controller(FragmentModel model, @SpringBean("userService") UserService service) {
 		String lastSyncDate = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
@@ -51,7 +49,7 @@ public class ContainerFragmentController {
 	}
 	
 	public ResponseEntity<Long> getPatientsCount() throws IOException {
-		Long response = containerService.getPatientsCount(true);
+		Long response = getContainerService().getPatientsCount(true);
 		logger.info("Total count from db::" + response);
 		return new ResponseEntity<Long>(response, HttpStatus.OK);
 	}
@@ -65,14 +63,14 @@ public class ContainerFragmentController {
 				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
 				Date lastSyncDate = dateFormat.parse(lastSync);
 				logger.info("Last sync date::" + lastSyncDate);
-				response = containerService.getPatientsCount(lastSyncDate, new Date(), true);
+				response = getContainerService().getPatientsCount(lastSyncDate, new Date(), true);
 			}
 			catch (ParseException e) {
 				e.printStackTrace();
 				return new ResponseEntity<Long>(0L, HttpStatus.INTERNAL_SERVER_ERROR);
 			}
 		} else {
-			response = containerService.getPatientsCount(true);
+			response = getContainerService().getPatientsCount(true);
 		}
 		return new ResponseEntity<Long>(response, HttpStatus.OK);
 	}
@@ -85,7 +83,7 @@ public class ContainerFragmentController {
 			DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
 			Date fromDate = dateFormat.parse(from);
 			Date toDate = dateFormat.parse(to);
-			response = containerService.getPatientsCount(fromDate, toDate, true);
+			response = getContainerService().getPatientsCount(fromDate, toDate, true);
 		}
 		catch (ParseException e) {
 			e.printStackTrace();
@@ -97,12 +95,12 @@ public class ContainerFragmentController {
 	public ResponseEntity<String> getPatientsProcessed(@RequestParam(value = "total") String total,
 	        @RequestParam(value = "type") String type) {
 		CdrSyncBatch cdrSyncBatch = Context.getService(CdrSyncAdminService.class).getCdrSyncBatchByStatusAndOwner(
-		    SyncStatus.IN_PROGRESS.name(), user.getUsername(), type);
+		    SyncStatus.IN_PROGRESS.name(), Context.getAuthenticatedUser().getUsername(), type);
 		if (cdrSyncBatch == null) {
 			cdrSyncBatch = new CdrSyncBatch();
 			cdrSyncBatch.setPatientsProcessed(0);
 			cdrSyncBatch.setPatients(Integer.parseInt(total));
-			cdrSyncBatch.setOwnerUsername(user.getUsername());
+			cdrSyncBatch.setOwnerUsername(Context.getAuthenticatedUser().getUsername());
 			cdrSyncBatch.setDateStarted(new Date());
 			cdrSyncBatch.setStatus(SyncStatus.IN_PROGRESS.name());
 			cdrSyncBatch.setSyncType(type);
@@ -142,8 +140,8 @@ public class ContainerFragmentController {
 		logger.info("context path: " + contextPath);
 		String fullContextPath = request.getSession().getServletContext().getRealPath(contextPath);
 		logger.info("full context path: " + fullContextPath);
-		response = containerService.getAllPatients(totalPatients, startPoint, lengthOfPatients, SyncType.INITIAL.name(),
-		    fullContextPath, contextPath);
+		response = getContainerService().getAllPatients(totalPatients, startPoint, lengthOfPatients,
+		    SyncType.INITIAL.name(), fullContextPath, contextPath);
 		if (response.contains("Sync complete!")) {
 			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(batchId, SyncStatus.COMPLETED.name(),
 			    startPoint, true);
@@ -164,7 +162,7 @@ public class ContainerFragmentController {
 				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
 				Date lastSyncDate = dateFormat.parse(lastSync);
 				logger.info("Last sync date::" + lastSyncDate);
-				response = containerService.getAllPatients(Long.valueOf(total), lastSyncDate, new Date(),
+				response = getContainerService().getAllPatients(Long.valueOf(total), lastSyncDate, new Date(),
 				    Integer.parseInt(start), Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath,
 				    contextPath);
 				return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
@@ -181,7 +179,7 @@ public class ContainerFragmentController {
 			}
 			
 		} else {
-			response = containerService.getAllPatients(Long.parseLong(total), Integer.parseInt(start),
+			response = getContainerService().getAllPatients(Long.parseLong(total), Integer.parseInt(start),
 			    Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath, contextPath);
 			return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 		}
@@ -207,7 +205,7 @@ public class ContainerFragmentController {
 		Date endDate = dateFormat.parse(to);
 		String contextPath = request.getContextPath();
 		String fullContextPath = request.getSession().getServletContext().getRealPath(contextPath);
-		String response = containerService.getAllPatients(Long.parseLong(total), startDate, endDate,
+		String response = getContainerService().getAllPatients(Long.parseLong(total), startDate, endDate,
 		    Integer.parseInt(start), Integer.parseInt(length), SyncType.CUSTOM.name(), fullContextPath, contextPath);
 		if (response.contains("Sync complete!")) {
 			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(Integer.parseInt(id),
@@ -217,7 +215,7 @@ public class ContainerFragmentController {
 	}
 	
 	public void saveLastSync() {
-		containerService.saveLastSyncDate();
+		getContainerService().saveLastSyncDate();
 	}
 	
 }

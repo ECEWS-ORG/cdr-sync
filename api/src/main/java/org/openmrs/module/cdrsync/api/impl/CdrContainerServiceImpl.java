@@ -1,10 +1,10 @@
 package org.openmrs.module.cdrsync.api.impl;
 
-import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.GlobalProperty;
 import org.openmrs.api.context.Context;
 import org.openmrs.api.impl.BaseOpenmrsService;
 import org.openmrs.module.cdrsync.api.CdrContainerService;
+import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
 import org.openmrs.module.cdrsync.api.CdrSyncPatientService;
 import org.openmrs.module.cdrsync.api.ContainerService;
 import org.openmrs.module.cdrsync.container.model.Container;
@@ -23,23 +23,16 @@ import java.util.logging.Logger;
 
 import static org.openmrs.module.cdrsync.utils.AppUtil.zipFolder;
 
-@Transactional
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
 	
 	Logger logger = Logger.getLogger(this.getClass().getName());
 	
-	private static final ObjectMapper objectMapper;
+	private ContainerService containerService;
 	
-	private final ContainerService containerService;
-	
-	public CdrContainerServiceImpl() {
-		this.containerService = new ContainerServiceImpl();
-	}
-	
-	static {
-		objectMapper = new ObjectMapper();
-		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-		objectMapper.setDateFormat(df);
+	public ContainerService getContainerService() {
+		if (containerService == null)
+			this.containerService = new ContainerServiceImpl();
+		return containerService;
 	}
 	
 	@Override
@@ -50,7 +43,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		String reportType = "CDR";
 		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
 		if (start < patientCount) {
-			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientIds(start, length, true);
+			List<Integer> patients = Context.getService(CdrSyncAdminService.class).getPatientIds(start, length, true);
 			result = buildContainer(patients, reportFolder);
 			return result;
 		} else {
@@ -63,7 +56,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	@Override
 	public List<Integer> getAllPatients(boolean includeVoided) {
-		return Context.getService(CdrSyncPatientService.class).getPatientIds(includeVoided);
+		return Context.getService(CdrSyncAdminService.class).getPatientIds(includeVoided);
 	}
 	
 	@Override
@@ -73,7 +66,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		String reportType = "CDR";
 		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
 		if (start < patientCount) {
-			List<Integer> patients = Context.getService(CdrSyncPatientService.class).getPatientsByLastSyncDate(startDate,
+			List<Integer> patients = Context.getService(CdrSyncAdminService.class).getPatientsByLastSyncDate(startDate,
 			    endDate, null, true, start, length);
 			//			result = buildContainer(patients, startDate, endDate);
 			result = buildContainer(patients, reportFolder);
@@ -93,7 +86,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		try {
 			patientIds.forEach(patientId -> {
 				try {
-					containerService.createContainer(containers, count, patientId, reportFolder);
+					getContainerService().createContainer(containers, count, patientId, reportFolder);
 				} catch (IOException e) {
 					throw new RuntimeException(e);
 				}
@@ -133,12 +126,12 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	@Override
 	public long getPatientsCount(boolean includeVoided) {
-		return Context.getService(CdrSyncPatientService.class).getPatientsCount(includeVoided);
+		return Context.getService(CdrSyncAdminService.class).getPatientsCount(includeVoided);
 	}
 	
 	@Override
 	public long getPatientsCount(Date startDate, Date endDate, boolean includeVoided) {
-		return Context.getService(CdrSyncPatientService.class).getPatientCountFromLastSyncDate(startDate, endDate, null,
+		return Context.getService(CdrSyncAdminService.class).getPatientCountFromLastSyncDate(startDate, endDate, null,
 		    includeVoided);
 	}
 	

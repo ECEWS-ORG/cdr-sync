@@ -16,10 +16,10 @@ import org.openmrs.module.cdrsync.Item;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
-@Repository("cdrsync.CdrsyncDao")
+//@Repository("cdrsync.CdrsyncDao")
 public class CdrsyncDao {
 	
-	@Autowired
+	//	@Autowired
 	DbSessionFactory sessionFactory;
 	
 	private DbSession getSession() {

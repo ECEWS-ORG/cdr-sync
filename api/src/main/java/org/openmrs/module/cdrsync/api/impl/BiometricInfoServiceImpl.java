@@ -1,12 +1,13 @@
 package org.openmrs.module.cdrsync.api.impl;
 
+import org.hibernate.impl.SessionFactoryImpl;
+import org.openmrs.api.db.hibernate.DbSessionFactory;
 import org.openmrs.module.cdrsync.api.BiometricInfoService;
 import org.openmrs.module.cdrsync.api.dao.BiometricInfoDao;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
 
 import java.util.List;
 
-//@Service
 public class BiometricInfoServiceImpl implements BiometricInfoService {
 	
 	private BiometricInfoDao biometricInfoDao;

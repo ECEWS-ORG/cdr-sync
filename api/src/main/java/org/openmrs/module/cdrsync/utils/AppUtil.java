@@ -11,6 +11,7 @@ import org.apache.commons.io.FileUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.User;
 import org.openmrs.api.context.Context;
+import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
 import org.openmrs.module.cdrsync.api.CdrSyncPatientService;
 import org.openmrs.module.cdrsync.container.model.Container;
 import org.openmrs.module.cdrsync.model.ContainerWrapper;
@@ -27,36 +28,58 @@ import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public class AppUtil {
 	
-	private static final String datimCode;
+	static Logger logger = Logger.getLogger(AppUtil.class.getName());
 	
-	private static final String facilityName;
+	private static String datimCode;
 	
-	private static final User user;
+	private static String facilityName;
 	
-	private static final String partnerShortName;
+	private static String partnerShortName;
 	
-	private static final ObjectMapper objectMapper;
+	private static ObjectMapper objectMapper;
 	
-	private static final DatimMap datimMap;
-	
-	static {
-		user = Context.getAuthenticatedUser();
-		datimCode = Context.getAdministrationService().getGlobalProperty("facility_datim_code");
-		facilityName = Context.getAdministrationService().getGlobalProperty("Facility_Name");
-		partnerShortName = Context.getAdministrationService().getGlobalProperty("partner_short_name");
-		objectMapper = new ObjectMapper();
-		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-		objectMapper.setDateFormat(df);
-		
-		datimMap = Context.getService(CdrSyncPatientService.class).getDatimMapByDatimCode(datimCode);
-	}
+	private static DatimMap datimMap;
 	
 	private AppUtil() {
+	}
+	
+	public static String getDatimCode() {
+		if (datimCode == null || datimCode.isEmpty())
+			datimCode = Context.getAdministrationService().getGlobalProperty("facility_datim_code");
+		return datimCode;
+	}
+	
+	public static String getFacilityName() {
+		if (facilityName == null || facilityName.isEmpty())
+			facilityName = Context.getAdministrationService().getGlobalProperty("Facility_Name");
+		return facilityName;
+	}
+	
+	private static ObjectMapper getObjectMapper() {
+		if (objectMapper == null) {
+			objectMapper = new ObjectMapper();
+			DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+			objectMapper.setDateFormat(df);
+		}
+		return objectMapper;
+	}
+	
+	public static DatimMap getDatimMap() {
+		if (datimMap == null)
+			datimMap = Context.getService(CdrSyncAdminService.class).getDatimMapByDatimCode(getDatimCode());
+		return datimMap;
+	}
+	
+	private static String getPartnerShortName() {
+		if (partnerShortName == null || partnerShortName.isEmpty())
+			partnerShortName = Context.getAdministrationService().getGlobalProperty("partner_short_name");
+		return partnerShortName;
 	}
 	
 	public static String ensureDownloadDirectoryExists(String contextPath) {
@@ -77,7 +100,7 @@ public class AppUtil {
 		} else if (file.exists()) {
 			if (start == 0) {
 				try {
-					System.out.println("Cleaning report directory");
+					logger.info("Cleaning report directory");
 					FileUtils.cleanDirectory(file);
 				}
 				catch (Exception e) {
@@ -100,17 +123,18 @@ public class AppUtil {
 		if (!dir.exists() && !dir.mkdirs()) {
 			throw new RuntimeException("Unable to create directory " + dir.getAbsolutePath());
 		}
-		String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(container);
+		String json = getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(container);
 		File file = new File(dir, fileName);
 		FileUtils.writeStringToFile(file, json, "UTF-8");
 		
 		if (dir.listFiles() != null && Objects.requireNonNull(dir.listFiles()).length == 10000) {
 			try {
-				String facility = facilityName.replaceAll(" ", "_");
+				String facility = getFacilityName().replaceAll(" ", "_");
 				String dateString = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
-				ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(Paths.get(folder.getAbsolutePath(),
-				    partnerShortName + "_" + datimCode + "_" + facility + "_" + dateString + "_" + new Date().getTime()
-				            + ".zip")));
+				ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(Paths.get(
+				    folder.getAbsolutePath(),
+				    getPartnerShortName() + "_" + getDatimCode() + "_" + facility + "_" + dateString + "_"
+				            + new Date().getTime() + ".zip")));
 				zipDirectory(dir, dir.getName(), zos);
 				zos.close();
 				FileUtils.cleanDirectory(dir);
@@ -126,14 +150,15 @@ public class AppUtil {
 		File folder = new File(reportFolder);
 		File dir = new File(folder, "jsonFiles");
 		StringBuilder result = new StringBuilder();
-		String facility = facilityName.replaceAll(" ", "_");
+		String facility = getFacilityName().replaceAll(" ", "_");
 		if (dir.listFiles() != null) {
 			ZipOutputStream zipOutputStream;
 			try {
 				String dateString = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
-				zipOutputStream = new ZipOutputStream(Files.newOutputStream(Paths.get(folder.getAbsolutePath(),
-				    partnerShortName + "_" + datimCode + "_" + facility + "_" + dateString + "_" + new Date().getTime()
-				            + ".zip")));
+				zipOutputStream = new ZipOutputStream(Files.newOutputStream(Paths.get(
+				    folder.getAbsolutePath(),
+				    getPartnerShortName() + "_" + getDatimCode() + "_" + facility + "_" + dateString + "_"
+				            + new Date().getTime() + ".zip")));
 				zipDirectory(dir, dir.getName(), zipOutputStream);
 				zipOutputStream.close();
 				FileUtils.deleteDirectory(dir);

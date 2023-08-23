@@ -1,13 +1,15 @@
 package org.openmrs.module.cdrsync.api.impl;
 
-import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.*;
 import org.openmrs.api.context.Context;
-import org.openmrs.module.cdrsync.api.*;
-import org.openmrs.module.cdrsync.container.model.*;
+import org.openmrs.module.cdrsync.api.BiometricInfoService;
+import org.openmrs.module.cdrsync.api.BiometricVerificationInfoService;
+import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
+import org.openmrs.module.cdrsync.api.ContainerService;
 import org.openmrs.module.cdrsync.container.model.EncounterType;
 import org.openmrs.module.cdrsync.container.model.PatientIdentifierType;
 import org.openmrs.module.cdrsync.container.model.VisitType;
+import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
 import org.openmrs.module.cdrsync.model.BiometricVerificationInfo;
 import org.openmrs.module.cdrsync.model.DatimMap;
@@ -16,38 +18,16 @@ import org.openmrs.util.Security;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
-import static org.openmrs.module.cdrsync.utils.AppUtil.writeContainerToFile;
+import static org.openmrs.module.cdrsync.utils.AppUtil.*;
 
 public class ContainerServiceImpl implements ContainerService {
 	
 	private final Logger logger = Logger.getLogger(this.getClass().getName());
-	
-	private static final String datimCode;
-	
-	private static final String facilityName;
-	
-	private static final User user;
-	
-	private static final ObjectMapper objectMapper;
-	
-	private static final DatimMap datimMap;
-	
-	static {
-		user = Context.getAuthenticatedUser();
-		datimCode = Context.getAdministrationService().getGlobalProperty("facility_datim_code");
-		facilityName = Context.getAdministrationService().getGlobalProperty("Facility_Name");
-		objectMapper = new ObjectMapper();
-		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-		objectMapper.setDateFormat(df);
-		
-		datimMap = Context.getService(CdrSyncPatientService.class).getDatimMapByDatimCode(datimCode);
-	}
 	
 	@Override
 	public void createContainer(List<Container> containers, AtomicInteger count, Integer patientId, String reportFolder)
@@ -70,7 +50,7 @@ public class ContainerServiceImpl implements ContainerService {
 		container.getMessageHeader().setTouchTime(touchTimes[0]);
 		SimpleDateFormat df = new SimpleDateFormat("yyyyMMddHHmmss");
 		String touchTimeString = df.format(container.getMessageHeader().getTouchTime());
-		String fileName = patient.getUuid() + "_" + touchTimeString + "_" + datimCode + ".json";
+		String fileName = patient.getUuid() + "_" + touchTimeString + "_" + getDatimCode() + ".json";
 		container.getMessageHeader().setFileName(fileName);
 		
 		writeContainerToFile(container, fileName, reportFolder);
@@ -91,8 +71,9 @@ public class ContainerServiceImpl implements ContainerService {
 	
 	private MessageHeaderType buildMessageHeader() {
 		MessageHeaderType messageHeaderType = new MessageHeaderType();
-		messageHeaderType.setFacilityName(facilityName);
-		messageHeaderType.setFacilityDatimCode(datimCode);
+		messageHeaderType.setFacilityName(getFacilityName());
+		messageHeaderType.setFacilityDatimCode(getDatimCode());
+		DatimMap datimMap = getDatimMap();
 		if (datimMap != null) {
 			messageHeaderType.setFacilityLga(datimMap.getLgaName());
 			messageHeaderType.setFacilityState(datimMap.getStateName());
@@ -196,7 +177,7 @@ public class ContainerServiceImpl implements ContainerService {
 		demographicsType.setGender(patient.getGender());
 		demographicsType.setPatientUuid(patient.getUuid());
 		demographicsType.setPatientId(patient.getPersonId());
-		demographicsType.setDatimId(datimCode);
+		demographicsType.setDatimId(getDatimCode());
 		demographicsType.setDateChanged(patient.getDateChanged());
 		return demographicsType;
 	}
@@ -245,7 +226,7 @@ public class ContainerServiceImpl implements ContainerService {
             visitType.setVisitUuid(visit.getUuid());
             visitType.setLocationId(visit.getLocation() != null ? visit.getLocation().getLocationId() : 0);
             visitType.setPatientUuid(patient.getPerson().getUuid());
-            visitType.setDatimId(datimCode);
+            visitType.setDatimId(getDatimCode());
             visitTypes.add(visitType);
             if (visit.getDateChanged() != null) {
                 if (touchTime[0] == null || touchTime[0].before(visit.getDateChanged()))
@@ -277,7 +258,7 @@ public class ContainerServiceImpl implements ContainerService {
             patientBiometricType.setCreator(biometricInfo.getCreator());
             patientBiometricType.setPatientUuid(patient.getPerson().getUuid());
             patientBiometricType.setDateCreated(biometricInfo.getDateCreated());
-            patientBiometricType.setDatimId(datimCode);
+            patientBiometricType.setDatimId(getDatimCode());
             patientBiometricType.setFingerPosition(biometricInfo.getFingerPosition());
             patientBiometricType.setImageDpi(biometricInfo.getImageDPI());
             patientBiometricType.setImageHeight(biometricInfo.getImageHeight());
@@ -310,7 +291,7 @@ public class ContainerServiceImpl implements ContainerService {
             patientBiometricType.setCreator(biometricInfo.getCreator());
             patientBiometricType.setPatientUuid(patient.getPerson().getUuid());
             patientBiometricType.setDateCreated(biometricInfo.getDateCreated());
-            patientBiometricType.setDatimId(datimCode);
+            patientBiometricType.setDatimId(getDatimCode());
             patientBiometricType.setFingerPosition(biometricInfo.getFingerPosition());
             patientBiometricType.setImageDpi(biometricInfo.getImageDPI());
             patientBiometricType.setImageHeight(biometricInfo.getImageHeight());
@@ -366,7 +347,7 @@ public class ContainerServiceImpl implements ContainerService {
             patientProgramType.setPatientUuid(patientProgram.getPatient().getPerson().getUuid());
             patientProgramType.setLocationId(patientProgram.getLocation() != null ?
                     patientProgram.getLocation().getLocationId() : 0);
-            patientProgramType.setDatimId(datimCode);
+            patientProgramType.setDatimId(getDatimCode());
             patientProgramTypes.add(patientProgramType);
             updatePatientTouchTime(touchTime, patientProgram.getDateChanged(), patientProgram.getDateCreated(), patientProgram.getDateVoided());
         });
@@ -397,7 +378,7 @@ public class ContainerServiceImpl implements ContainerService {
             patientIdentifierType.setVoided(patientIdentifier.getVoided() ? 1 : 0);
             patientIdentifierType.setVoidedBy(patientIdentifier.getVoided() ? patientIdentifier.getVoidedBy() != null ? patientIdentifier.getVoidedBy().getId() : 0 : 0);
             patientIdentifierType.setDateVoided(patientIdentifier.getDateVoided());
-            patientIdentifierType.setDatimId(datimCode);
+            patientIdentifierType.setDatimId(getDatimCode());
             patientIdentifierType.setPatientUuid(patient.getUuid());
             patientIdentifierTypes.add(patientIdentifierType);
             updatePatientTouchTime(touchTime, patientIdentifier.getDateChanged(), patientIdentifier.getDateCreated(), patientIdentifier.getDateVoided());
@@ -421,17 +402,25 @@ public class ContainerServiceImpl implements ContainerService {
         encounters.forEach(encounter -> {
             EncounterType encounterType = new EncounterType();
             encounterType.setPatientUuid(patient.getPerson().getUuid());
-            encounterType.setDatimId(datimCode);
+            encounterType.setDatimId(getDatimCode());
             if (encounter.getVisit() != null) {
                 encounterType.setVisitId(encounter.getVisit().getVisitId());
                 encounterType.setVisitUuid(encounter.getVisit().getUuid());
             }
             encounterType.setEncounterUuid(encounter.getUuid());
             encounterType.setEncounterId(encounter.getEncounterId());
-            encounterType.setEncounterTypeId(encounter.getEncounterType() != null ?
-                    encounter.getEncounterType().getEncounterTypeId() : 0);
+            try {
+                encounterType.setEncounterTypeId(encounter.getEncounterType() != null ?
+                        encounter.getEncounterType().getEncounterTypeId() : 0);
+            } catch (Exception e) {
+                logger.warning("Error getting encounter type id: " + e.getMessage());
+            }
             encounterType.setPatientId(patient.getPatientId());
-            encounterType.setLocationId(encounter.getLocation() != null ? encounter.getLocation().getLocationId() : 0);
+            try {
+                encounterType.setLocationId(encounter.getLocation() != null ? encounter.getLocation().getLocationId() : 0);
+            } catch (Exception e) {
+                logger.warning("Error getting location id: " + e.getMessage());
+            }
             try {
                 encounterType.setFormId(encounter.getForm() != null ? encounter.getForm().getFormId() : 0);
                 encounterType.setPmmForm(encounter.getForm() != null ? encounter.getForm().getName() != null ? encounter.getForm().getName() : "" : "");
@@ -439,7 +428,11 @@ public class ContainerServiceImpl implements ContainerService {
                 logger.warning("Error getting form name: " + e.getMessage());
             }
             encounterType.setEncounterDatetime(encounter.getEncounterDatetime());
-            encounterType.setCreator(encounter.getCreator() != null ? encounter.getCreator().getId() : 0);
+            try {
+                encounterType.setCreator(encounter.getCreator() != null ? encounter.getCreator().getId() : 0);
+            } catch (Exception e) {
+                logger.warning("Error getting creator: " + e.getMessage());
+            }
             encounterType.setDateCreated(encounter.getDateCreated());
             try {
                 encounterType.setChangedBy(encounter.getChangedBy() != null ? encounter.getChangedBy().getId() : 0);
@@ -448,9 +441,12 @@ public class ContainerServiceImpl implements ContainerService {
             }
             encounterType.setDateChanged(encounter.getDateChanged());
             encounterType.setVoided(encounter.getVoided() ? 1 : 0);
-            encounterType.setVoidedBy(encounter.getVoided() ?
-                    encounter.getVoidedBy() != null ?
-                            encounter.getVoidedBy().getId() : 0 : 0);
+            try {
+                encounterType.setVoidedBy(encounter.getVoided() ? encounter.getVoidedBy() != null ?
+                                encounter.getVoidedBy().getId() : 0 : 0);
+            } catch (Exception e) {
+                logger.warning("Error getting voided by: " + e.getMessage());
+            }
             encounterType.setDateVoided(encounter.getDateVoided());
             encounterTypes.add(encounterType);
             Set<EncounterProvider> encounterProviders = encounter.getEncounterProviders();
@@ -499,7 +495,7 @@ public class ContainerServiceImpl implements ContainerService {
         obsList.forEach(obs -> {
             ObsType obsType = new ObsType();
             obsType.setPatientUuid(patient.getUuid());
-            obsType.setDatimId(datimCode);
+            obsType.setDatimId(getDatimCode());
             obsType.setObsUuid(obs.getUuid());
             obsType.setObsId(obs.getObsId());
             obsType.setPersonId(obs.getPersonId());
@@ -611,7 +607,7 @@ public class ContainerServiceImpl implements ContainerService {
                 providerType.setVisitUuid(encounterProvider.getEncounter() != null ? encounterProvider.getEncounter().getVisit() != null ? encounterProvider.getEncounter().getVisit().getUuid() : null : null);
                 providerType.setLocationId(encounterProvider.getEncounter() != null ? encounterProvider.getEncounter().getLocation() != null ? encounterProvider.getEncounter().getLocation().getLocationId() : 0 : 0);
                 providerType.setPatientUuid(patient.getUuid());
-                providerType.setDatimId(datimCode);
+                providerType.setDatimId(getDatimCode());
                 encounterProviderTypes.add(providerType);
                 updatePatientTouchTime(touchTimes, encounterProvider.getDateChanged(), encounterProvider.getDateCreated(), encounterProvider.getDateVoided());
             });
