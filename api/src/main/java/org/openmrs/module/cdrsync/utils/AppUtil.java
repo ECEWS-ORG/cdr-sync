@@ -247,7 +247,6 @@ public class AppUtil {
 			String username = Context.getRuntimeProperties().getProperty("username");
 			String password = Context.getRuntimeProperties().getProperty("password");
 			String credentials = username + ":" + password;
-			logger.info("Credentials::" + credentials);
 			String encodedCredentials = Base64.getEncoder().encodeToString(credentials.trim().getBytes());
 
 			HttpGet get = new HttpGet(url);

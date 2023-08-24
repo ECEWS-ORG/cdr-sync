@@ -115,7 +115,7 @@ public class ContainerServiceImpl implements ContainerService {
         messageDataType.setPatientBiometricVerifications(buildPatientBiometricVerifications(patient, touchTime));
         messageDataType.setPatientPrograms(buildPatientProgram(patient, touchTime));
         messageDataType.setPatientIdentifiers(buildPatientIdentifier(patient, touchTime));
-        messageDataType.setCovid19Cases(buildCovid19Cases(patient, touchTime));
+//        messageDataType.setCovid19Cases(buildCovid19Cases(patient, touchTime));
         return messageDataType;
     }
 	
