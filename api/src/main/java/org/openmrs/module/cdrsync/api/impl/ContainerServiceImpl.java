@@ -2,16 +2,14 @@ package org.openmrs.module.cdrsync.api.impl;
 
 import org.openmrs.*;
 import org.openmrs.api.context.Context;
-import org.openmrs.module.cdrsync.api.BiometricInfoService;
-import org.openmrs.module.cdrsync.api.BiometricVerificationInfoService;
-import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
-import org.openmrs.module.cdrsync.api.ContainerService;
+import org.openmrs.module.cdrsync.api.*;
 import org.openmrs.module.cdrsync.container.model.EncounterType;
 import org.openmrs.module.cdrsync.container.model.PatientIdentifierType;
 import org.openmrs.module.cdrsync.container.model.VisitType;
 import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
 import org.openmrs.module.cdrsync.model.BiometricVerificationInfo;
+import org.openmrs.module.cdrsync.model.Covid19Case;
 import org.openmrs.module.cdrsync.model.DatimMap;
 import org.openmrs.module.cdrsync.utils.AppUtil;
 import org.openmrs.util.Security;
@@ -28,6 +26,24 @@ import static org.openmrs.module.cdrsync.utils.AppUtil.*;
 public class ContainerServiceImpl implements ContainerService {
 	
 	private final Logger logger = Logger.getLogger(this.getClass().getName());
+	
+	private final CdrSyncAdminService cdrSyncAdminService;
+	
+	private final BiometricVerificationInfoService biometricVerificationInfoService;
+	
+	private final BiometricInfoService biometricInfoService;
+	
+	private final EncounterService encounterService;
+	
+	private final Covid19CaseService covid19CaseService;
+	
+	public ContainerServiceImpl() {
+		this.cdrSyncAdminService = Context.getService(CdrSyncAdminService.class);
+		this.biometricVerificationInfoService = Context.getService(BiometricVerificationInfoService.class);
+		this.biometricInfoService = Context.getService(BiometricInfoService.class);
+		this.encounterService = Context.getService(EncounterService.class);
+		this.covid19CaseService = Context.getService(Covid19CaseService.class);
+	}
 	
 	@Override
 	public void createContainer(List<Container> containers, AtomicInteger count, Integer patientId, String reportFolder)
@@ -53,7 +69,7 @@ public class ContainerServiceImpl implements ContainerService {
 		String fileName = patient.getUuid() + "_" + touchTimeString + "_" + getDatimCode() + ".json";
 		container.getMessageHeader().setFileName(fileName);
 		
-		writeContainerToFile(container, fileName, reportFolder);
+		writeObjectToFile(container, fileName, reportFolder);
 		
 		//		containers.add(container);
 		//		if (containers.size() == 50) {
@@ -79,7 +95,7 @@ public class ContainerServiceImpl implements ContainerService {
 			messageHeaderType.setFacilityState(datimMap.getStateName());
 		}
 		messageHeaderType.setMessageCreationDateTime(new Date());
-		messageHeaderType.setMessageSchemaVersion(new BigDecimal("1.1"));
+		messageHeaderType.setMessageSchemaVersion(new BigDecimal("2.0"));
 		messageHeaderType.setMessageStatusCode("SYNCED");
 		messageHeaderType.setMessageUniqueID(UUID.randomUUID().toString());
 		messageHeaderType.setMessageSource("NMRS");
@@ -99,7 +115,30 @@ public class ContainerServiceImpl implements ContainerService {
         messageDataType.setPatientBiometricVerifications(buildPatientBiometricVerifications(patient, touchTime));
         messageDataType.setPatientPrograms(buildPatientProgram(patient, touchTime));
         messageDataType.setPatientIdentifiers(buildPatientIdentifier(patient, touchTime));
+        messageDataType.setCovid19Cases(buildCovid19Cases(patient, touchTime));
         return messageDataType;
+    }
+	
+	private List<Covid19CaseType> buildCovid19Cases(Patient patient, Date[] touchTime) {
+        List<Covid19CaseType> covid19CaseTypes = new ArrayList<>();
+        List<Covid19Case> covid19Cases = covid19CaseService.getCovid19CasesByPatientId(patient.getPatientId());
+        if (covid19Cases != null && !covid19Cases.isEmpty()) {
+            buildContainerCovid19CaseType(patient, touchTime, covid19CaseTypes, covid19Cases);
+        }
+        return covid19CaseTypes;
+    }
+	
+	private void buildContainerCovid19CaseType(Patient patient, Date[] touchTime, List<Covid19CaseType> covid19CaseTypes, List<Covid19Case> covid19Cases) {
+        covid19Cases.forEach(covid19Case -> {
+            Covid19CaseType covid19CaseType = new Covid19CaseType(covid19Case);
+            covid19CaseType.setPatientUuid(patient.getPerson().getUuid());
+            covid19CaseType.setDatimCode(getDatimCode());
+
+            covid19CaseTypes.add(covid19CaseType);
+
+            if (touchTime[0] == null || touchTime[0].before(covid19Case.getCaseStatusDate()))
+                touchTime[0] = covid19Case.getCaseStatusDate();
+        });
     }
 	
 	private DemographicsType buildDemographics(Patient patient, Date[] touchTime) {
@@ -198,10 +237,7 @@ public class ContainerServiceImpl implements ContainerService {
 	
 	private List<VisitType> buildVisits(Patient patient, Date[] touchTime) {
         List<VisitType> visitTypes = new ArrayList<>();
-        List<Visit> visits = Context.getVisitService().getVisits(
-                null, Collections.singletonList(patient), null, null, null,
-                null, null, null, null, true, true
-        );
+        List<Visit> visits = encounterService.getVisitsByPatientId(patient.getPatientId());
         if (visits != null && !visits.isEmpty()) {
             buildContainerVisitType(patient, touchTime, visitTypes, visits);
         }
@@ -243,7 +279,7 @@ public class ContainerServiceImpl implements ContainerService {
 	
 	private List<PatientBiometricType> buildPatientBiometrics(Patient patient, Date[] touchTime) {
         List<PatientBiometricType> patientBiometricTypes = new ArrayList<>();
-        List<BiometricInfo> biometricInfos = Context.getService(BiometricInfoService.class).getBiometricInfoByPatientId(patient.getPatientId());
+        List<BiometricInfo> biometricInfos = biometricInfoService.getBiometricInfoByPatientId(patient.getPatientId());
         if (biometricInfos != null && !biometricInfos.isEmpty()) {
             buildContainerBiometricType(patient, touchTime, patientBiometricTypes, biometricInfos);
         }
@@ -276,7 +312,7 @@ public class ContainerServiceImpl implements ContainerService {
 	
 	private List<PatientBiometricVerificationType> buildPatientBiometricVerifications(Patient patient, Date[] touchTime) {
         List<PatientBiometricVerificationType> patientBiometricTypes = new ArrayList<>();
-        List<BiometricVerificationInfo> biometricInfos = Context.getService(BiometricVerificationInfoService.class).getBiometricVerificationInfoByPatientId(patient.getPatientId());
+        List<BiometricVerificationInfo> biometricInfos = biometricVerificationInfoService.getBiometricVerificationInfoByPatientId(patient.getPatientId());
         if (biometricInfos != null && !biometricInfos.isEmpty()) {
             buildContainerBiometricVerificationType(patient, touchTime, patientBiometricTypes, biometricInfos);
         }
@@ -312,9 +348,10 @@ public class ContainerServiceImpl implements ContainerService {
 	
 	private List<PatientProgramType> buildPatientProgram(Patient patient, Date[] touchTime) {
         List<PatientProgramType> patientProgramTypes = new ArrayList<>();
-        List<PatientProgram> patientPrograms = Context.getProgramWorkflowService().getPatientPrograms(
-                patient, null, null, null, null, null, true
-        );
+        List<PatientProgram> patientPrograms = encounterService.getPatientProgramsByPatientId(patient.getPatientId());
+//        List<PatientProgram> patientPrograms = Context.getProgramWorkflowService().getPatientPrograms(
+//                patient, null, null, null, null, null, true
+//        );
         if (patientPrograms != null && !patientPrograms.isEmpty()) {
             buildContainerPatientProgramType(touchTime, patientProgramTypes, patientPrograms);
         }
@@ -389,7 +426,8 @@ public class ContainerServiceImpl implements ContainerService {
             Patient patient, List<EncounterProvider> providers, Date[] touchTime, List<Obs> obsList
     ) {
         List<EncounterType> encounterTypes = new ArrayList<>();
-        List<Encounter> encounterList = Context.getEncounterService().getEncounters(patient, null, null, null, null, null, null, null, null, true);
+//            List<Encounter> encounterList = Context.getEncounterService().getEncounters(patient, null, null, null, null, null, null, null, null, true);
+        List<Encounter> encounterList = encounterService.getEncountersByPatientId(patient.getPatientId());
         if (encounterList != null && !encounterList.isEmpty())
             buildContainerEncounterType(patient, providers, touchTime, encounterTypes, encounterList, obsList);
         return encounterTypes;

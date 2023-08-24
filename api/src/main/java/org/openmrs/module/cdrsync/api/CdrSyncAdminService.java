@@ -3,10 +3,7 @@ package org.openmrs.module.cdrsync.api;
 import org.openmrs.Patient;
 import org.openmrs.api.AdministrationService;
 import org.openmrs.api.db.DAOException;
-import org.openmrs.module.cdrsync.model.BiometricInfo;
-import org.openmrs.module.cdrsync.model.BiometricVerificationInfo;
-import org.openmrs.module.cdrsync.model.CdrSyncBatch;
-import org.openmrs.module.cdrsync.model.DatimMap;
+import org.openmrs.module.cdrsync.model.*;
 
 import java.util.Date;
 import java.util.List;
@@ -37,4 +34,5 @@ public interface CdrSyncAdminService extends AdministrationService {
 	
 	DatimMap getDatimMapByDatimCode(String datimCode) throws DAOException;
 	
+	List<Covid19Case> getCovid19CasesByPatientId(Integer patientId);
 }

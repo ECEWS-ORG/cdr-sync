@@ -24,12 +24,17 @@
             <ref bean="dbSessionFactory"/>
         </property>
     </bean>
-<!--    <bean id="cdrsync.CdrSyncPatientDao" class="org.openmrs.module.cdrsync.api.dao.impl.CdrSyncPatientDaoImpl">-->
-<!--        <property name="sessionFactory">-->
-<!--            <ref bean="dbSessionFactory"/>-->
-<!--        </property>-->
-<!--    </bean>-->
+    <bean id="cdrsync.EncounterDao" class="org.openmrs.module.cdrsync.api.dao.impl.EncounterDaoImpl">
+        <property name="sessionFactory">
+            <ref bean="dbSessionFactory"/>
+        </property>
+    </bean>
     <bean id="cdrSync.CdrSyncAdminDao" class="org.openmrs.module.cdrsync.api.dao.impl.CdrSyncAdminDaoImpl">
+        <property name="sessionFactory">
+            <ref bean="dbSessionFactory" />
+        </property>
+    </bean>
+    <bean id="cdrSync.Covid19CaseDao" class="org.openmrs.module.cdrsync.api.dao.impl.Covid19CaseDaoImpl">
         <property name="sessionFactory">
             <ref bean="dbSessionFactory" />
         </property>
@@ -66,22 +71,22 @@
             <ref bean="transactionAttributeSource" />
         </property>
     </bean>
-<!--    <bean id="cdrsync.CdrSyncPatientService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">-->
-<!--        <property name="transactionManager">-->
-<!--            <ref bean="transactionManager" />-->
-<!--        </property>-->
-<!--        <property name="target">-->
-<!--            <bean class="org.openmrs.module.cdrsync.api.impl.CdrSyncPatientServiceImpl">-->
-<!--                <property name="dao" ref="cdrsync.CdrSyncPatientDao" />-->
-<!--            </bean>-->
-<!--        </property>-->
-<!--        <property name="preInterceptors">-->
-<!--            <ref bean="serviceInterceptors" />-->
-<!--        </property>-->
-<!--        <property name="transactionAttributeSource">-->
-<!--            <ref bean="transactionAttributeSource" />-->
-<!--        </property>-->
-<!--    </bean>-->
+    <bean id="cdrsync.EncounterService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+        <property name="transactionManager">
+            <ref bean="transactionManager" />
+        </property>
+        <property name="target">
+            <bean class="org.openmrs.module.cdrsync.api.impl.EncounterServiceImpl">
+                <property name="dao" ref="cdrsync.EncounterDao" />
+            </bean>
+        </property>
+        <property name="preInterceptors">
+            <ref bean="serviceInterceptors" />
+        </property>
+        <property name="transactionAttributeSource">
+            <ref bean="transactionAttributeSource" />
+        </property>
+    </bean>
     <bean id="cdrsync.CdrSyncAdminService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
         <property name="transactionManager">
             <ref bean="transactionManager" />
@@ -89,8 +94,22 @@
         <property name="target">
             <bean class="org.openmrs.module.cdrsync.api.impl.CdrSyncAdminServiceImpl">
                 <property name="dao" ref="cdrSync.CdrSyncAdminDao" />
-<!--                <property name="biometricInfoDao" ref="cdrsync.BiometricInfoDao" />-->
-<!--                <property name="biometricVerificationInfoDao" ref="cdrsync.BiometricVerificationInfoDao" />-->
+            </bean>
+        </property>
+        <property name="preInterceptors">
+            <ref bean="serviceInterceptors" />
+        </property>
+        <property name="transactionAttributeSource">
+            <ref bean="transactionAttributeSource" />
+        </property>
+    </bean>
+    <bean id="cdrsync.Covid19CaseService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+        <property name="transactionManager">
+            <ref bean="transactionManager" />
+        </property>
+        <property name="target">
+            <bean class="org.openmrs.module.cdrsync.api.impl.Covid19CaseServiceImpl">
+                <property name="dao" ref="cdrSync.Covid19CaseDao" />
             </bean>
         </property>
         <property name="preInterceptors">
@@ -116,19 +135,27 @@
             </list>
         </property>
     </bean>
-<!--    <bean parent="serviceContext">-->
-<!--        <property name="moduleService">-->
-<!--            <list>-->
-<!--                <value>org.openmrs.module.cdrsync.api.CdrSyncPatientService</value>-->
-<!--                <ref bean="cdrsync.CdrSyncPatientService" />-->
-<!--            </list>-->
-<!--        </property>-->
-<!--    </bean>-->
+    <bean parent="serviceContext">
+        <property name="moduleService">
+            <list>
+                <value>org.openmrs.module.cdrsync.api.EncounterService</value>
+                <ref bean="cdrsync.EncounterService" />
+            </list>
+        </property>
+    </bean>
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
                 <value>org.openmrs.module.cdrsync.api.CdrSyncAdminService</value>
                 <ref bean="cdrsync.CdrSyncAdminService" />
+            </list>
+        </property>
+    </bean>
+    <bean parent="serviceContext">
+        <property name="moduleService">
+            <list>
+                <value>org.openmrs.module.cdrsync.api.Covid19CaseService</value>
+                <ref bean="cdrsync.Covid19CaseService" />
             </list>
         </property>
     </bean>

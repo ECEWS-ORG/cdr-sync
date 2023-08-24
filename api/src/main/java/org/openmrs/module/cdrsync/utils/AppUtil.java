@@ -8,17 +8,17 @@ import org.apache.commons.io.FileUtils;
 //import org.apache.http.impl.client.CloseableHttpClient;
 //import org.apache.http.impl.client.HttpClientBuilder;
 //import org.apache.http.util.EntityUtils;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.codehaus.jackson.map.ObjectMapper;
-import org.openmrs.User;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
-import org.openmrs.module.cdrsync.api.CdrSyncPatientService;
-import org.openmrs.module.cdrsync.container.model.Container;
-import org.openmrs.module.cdrsync.model.ContainerWrapper;
 import org.openmrs.module.cdrsync.model.DatimMap;
-import org.openmrs.module.cdrsync.model.EncryptedBody;
-import org.openmrs.module.cdrsync.model.enums.SyncType;
-import org.openmrs.util.Security;
+import org.openmrs.module.cdrsync.model.FacilityMetaData;
+import org.openmrs.module.cdrsync.model.ModuleWrapper;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -115,7 +115,7 @@ public class AppUtil {
 		return new ArrayList<>(Arrays.asList(159635, 162729, 160638, 160641, 160642));
 	}
 	
-	public static void writeContainerToFile(Container container, String fileName, String reportFolder) throws IOException {
+	public static void writeObjectToFile(Object object, String fileName, String reportFolder) throws IOException {
 		
 		File folder = new File(reportFolder);
 		
@@ -123,7 +123,7 @@ public class AppUtil {
 		if (!dir.exists() && !dir.mkdirs()) {
 			throw new RuntimeException("Unable to create directory " + dir.getAbsolutePath());
 		}
-		String json = getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(container);
+		String json = getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(object);
 		File file = new File(dir, fileName);
 		FileUtils.writeStringToFile(file, json, "UTF-8");
 		
@@ -240,4 +240,41 @@ public class AppUtil {
 	//			}
 	//		}
 	//	}
+	
+	public static void getFacilityMetaData(String url, String reportFolder) {
+		try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()) {
+			logger.info("Getting facility metadata::" + url);
+			String username = Context.getRuntimeProperties().getProperty("username");
+			String password = Context.getRuntimeProperties().getProperty("password");
+			String credentials = username + ":" + password;
+			logger.info("Credentials::" + credentials);
+			String encodedCredentials = Base64.getEncoder().encodeToString(credentials.trim().getBytes());
+
+			HttpGet get = new HttpGet(url);
+			get.setHeader("Content-Type", "application/json");
+			get.setHeader("Authorization", "Basic " + encodedCredentials);
+
+			try (CloseableHttpResponse response = httpClient.execute(get)){
+				int statusCode = response.getStatusLine().getStatusCode();
+				if (statusCode == 200) {
+					String responseBody = EntityUtils.toString(response.getEntity());
+					ObjectMapper objectMapper = getObjectMapper();
+					ModuleWrapper moduleWrapper = objectMapper.readValue(responseBody, ModuleWrapper.class);
+					FacilityMetaData facilityMetaData = new FacilityMetaData(moduleWrapper.getResults());
+					facilityMetaData.setId(getDatimCode());
+					facilityMetaData.setFacilityName(getFacilityName());
+					facilityMetaData.setFacilityDatimCode(getDatimCode());
+					facilityMetaData.setOperatingSystem(System.getProperty("os.name"));
+					logger.info("Modules::" + objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(facilityMetaData));
+					String fileName = getPartnerShortName() + "_" + getDatimCode() + "_facilityMetaData.json";
+					writeObjectToFile(facilityMetaData, fileName, reportFolder);
+				} else {
+					logger.warning("error sending request");
+					logger.warning("Response::" + response);
+				}
+			}
+		} catch (IOException e) {
+			logger.severe("Error::" + e.getMessage());
+		}
+	}
 }

@@ -6,6 +6,7 @@ import org.openmrs.api.impl.AdministrationServiceImpl;
 import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
 import org.openmrs.module.cdrsync.api.dao.CdrSyncAdminDao;
 import org.openmrs.module.cdrsync.model.CdrSyncBatch;
+import org.openmrs.module.cdrsync.model.Covid19Case;
 import org.openmrs.module.cdrsync.model.DatimMap;
 
 import java.util.Date;
@@ -86,6 +87,11 @@ public class CdrSyncAdminServiceImpl extends AdministrationServiceImpl implement
 	@Override
 	public DatimMap getDatimMapByDatimCode(String datimCode) throws DAOException {
 		return syncAdminDao.getDatimMapByDatimCode(datimCode);
+	}
+	
+	@Override
+	public List<Covid19Case> getCovid19CasesByPatientId(Integer patientId) {
+		return syncAdminDao.getCovid19CasesByPatientId(patientId);
 	}
 	
 }

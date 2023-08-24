@@ -10,10 +10,7 @@ import org.openmrs.api.db.DAOException;
 import org.openmrs.api.db.hibernate.DbSessionFactory;
 import org.openmrs.api.db.hibernate.HibernateAdministrationDAO;
 import org.openmrs.module.cdrsync.api.dao.CdrSyncAdminDao;
-import org.openmrs.module.cdrsync.model.BiometricInfo;
-import org.openmrs.module.cdrsync.model.BiometricVerificationInfo;
-import org.openmrs.module.cdrsync.model.CdrSyncBatch;
-import org.openmrs.module.cdrsync.model.DatimMap;
+import org.openmrs.module.cdrsync.model.*;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -254,6 +251,13 @@ public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements C
 	@Override
 	public List<BiometricInfo> getBiometricInfoByPatientId(Integer patientId) {
 		Criteria criteria = sessionFactory.getCurrentSession().createCriteria(BiometricInfo.class);
+		criteria.add(Restrictions.eq("patientId", patientId));
+		return criteria.list();
+	}
+	
+	@Override
+	public List<Covid19Case> getCovid19CasesByPatientId(Integer patientId) {
+		Criteria criteria = sessionFactory.getCurrentSession().createCriteria(Covid19Case.class);
 		criteria.add(Restrictions.eq("patientId", patientId));
 		return criteria.list();
 	}

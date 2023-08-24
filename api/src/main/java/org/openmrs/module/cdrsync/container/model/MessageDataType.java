@@ -31,6 +31,8 @@ public class MessageDataType implements Serializable {
 	
 	private List<PatientBiometricVerificationType> patientBiometricVerifications;
 	
+	private List<Covid19CaseType> covid19Cases;
+	
 	public List<PatientBiometricVerificationType> getPatientBiometricVerifications() {
 		if (patientBiometricVerifications == null)
 			patientBiometricVerifications = new ArrayList<>();
@@ -117,5 +119,15 @@ public class MessageDataType implements Serializable {
 	
 	public void setPatientPrograms(List<PatientProgramType> patientPrograms) {
 		this.patientPrograms = patientPrograms;
+	}
+	
+	public List<Covid19CaseType> getCovid19Cases() {
+		if (covid19Cases == null)
+			covid19Cases = new ArrayList<>();
+		return covid19Cases;
+	}
+	
+	public void setCovid19Cases(List<Covid19CaseType> covid19Cases) {
+		this.covid19Cases = covid19Cases;
 	}
 }

@@ -154,7 +154,7 @@
                 var zipFiles = response[1].split("&&");
                 console.log(zipFiles);
                 jq('#message').html("<p>"+serverResponse+"</p>" +
-                    "<p>Click the download button(s) below or copy and paste the file locations on the browser to download the extracted files</p><br>"
+                    "<p>Click the download button(s) below to download the extracted files</p><br>"
                 );
                 for (var i = 0; i < zipFiles.length; i++) {
                     if (zipFiles[i] !== "") {
@@ -245,7 +245,7 @@
                 var zipFiles = response[1].split("&&");
                 console.log(zipFiles);
                 jq('#message').html("<p>"+serverResponse+"</p>" +
-                    "<p>Click the download button(s) below or copy and paste the file locations on the browser to download the extracted files</p><br>"
+                    "<p>Click the download button(s) below to download the extracted files</p><br>"
                 );
                 for (var i = 0; i < zipFiles.length; i++) {
                     if (zipFiles[i] !== "") {

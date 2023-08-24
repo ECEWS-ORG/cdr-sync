@@ -1,12 +1,10 @@
 package org.openmrs.module.cdrsync.fragment.controller;
 
-import org.openmrs.User;
 import org.openmrs.api.UserService;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.cdrsync.api.CdrContainerService;
 import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
 import org.openmrs.module.cdrsync.api.impl.CdrContainerServiceImpl;
-import org.openmrs.module.cdrsync.api.impl.ContainerServiceImpl;
 import org.openmrs.module.cdrsync.model.CdrSyncBatch;
 import org.openmrs.module.cdrsync.model.enums.SyncStatus;
 import org.openmrs.module.cdrsync.model.enums.SyncType;
@@ -54,7 +52,7 @@ public class ContainerFragmentController {
 		return new ResponseEntity<Long>(response, HttpStatus.OK);
 	}
 	
-	public ResponseEntity<Long> getPatientsCountFromLastSync() throws IOException {
+	public ResponseEntity<Long> getPatientsCountFromLastSync(HttpServletRequest request) throws IOException {
 		String lastSync = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
 		logger.info("Last sync date from db::" + lastSync);
 		long response;
@@ -140,8 +138,13 @@ public class ContainerFragmentController {
 		logger.info("context path: " + contextPath);
 		String fullContextPath = request.getSession().getServletContext().getRealPath(contextPath);
 		logger.info("full context path: " + fullContextPath);
+		String host = request.getServerName();
+		logger.info("Host::" + host);
+		int port = request.getServerPort();
+		logger.info("Port::" + port);
+		String url = "http://" + host + ":" + port + contextPath + "/ws/rest/v1/module?v=full";
 		response = getContainerService().getAllPatients(totalPatients, startPoint, lengthOfPatients,
-		    SyncType.INITIAL.name(), fullContextPath, contextPath);
+		    SyncType.INITIAL.name(), fullContextPath, contextPath, url);
 		if (response.contains("Sync complete!")) {
 			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(batchId, SyncStatus.COMPLETED.name(),
 			    startPoint, true);
@@ -157,6 +160,11 @@ public class ContainerFragmentController {
 		String response;
 		String contextPath = request.getContextPath();
 		String fullContextPath = request.getSession().getServletContext().getRealPath(contextPath);
+		String host = request.getServerName();
+		logger.info("Host::" + host);
+		int port = request.getServerPort();
+		logger.info("Port::" + port);
+		String url = "http://" + host + ":" + port + contextPath + "/ws/rest/v1/module?v=full";
 		if (lastSync != null && !lastSync.isEmpty()) {
 			try {
 				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
@@ -164,7 +172,7 @@ public class ContainerFragmentController {
 				logger.info("Last sync date::" + lastSyncDate);
 				response = getContainerService().getAllPatients(Long.valueOf(total), lastSyncDate, new Date(),
 				    Integer.parseInt(start), Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath,
-				    contextPath);
+				    contextPath, url);
 				return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 			}
 			catch (ParseException e) {
@@ -180,7 +188,7 @@ public class ContainerFragmentController {
 			
 		} else {
 			response = getContainerService().getAllPatients(Long.parseLong(total), Integer.parseInt(start),
-			    Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath, contextPath);
+			    Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath, contextPath, url);
 			return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 		}
 	}
@@ -205,8 +213,13 @@ public class ContainerFragmentController {
 		Date endDate = dateFormat.parse(to);
 		String contextPath = request.getContextPath();
 		String fullContextPath = request.getSession().getServletContext().getRealPath(contextPath);
+		String host = request.getServerName();
+		logger.info("Host::" + host);
+		int port = request.getServerPort();
+		logger.info("Port::" + port);
+		String url = "http://" + host + ":" + port + contextPath + "/ws/rest/v1/module?v=full";
 		String response = getContainerService().getAllPatients(Long.parseLong(total), startDate, endDate,
-		    Integer.parseInt(start), Integer.parseInt(length), SyncType.CUSTOM.name(), fullContextPath, contextPath);
+		    Integer.parseInt(start), Integer.parseInt(length), SyncType.CUSTOM.name(), fullContextPath, contextPath, url);
 		if (response.contains("Sync complete!")) {
 			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(Integer.parseInt(id),
 			    SyncStatus.COMPLETED.name(), Integer.parseInt(start), true);

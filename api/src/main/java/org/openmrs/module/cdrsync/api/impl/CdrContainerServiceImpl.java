@@ -5,7 +5,6 @@ import org.openmrs.api.context.Context;
 import org.openmrs.api.impl.BaseOpenmrsService;
 import org.openmrs.module.cdrsync.api.CdrContainerService;
 import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
-import org.openmrs.module.cdrsync.api.CdrSyncPatientService;
 import org.openmrs.module.cdrsync.api.ContainerService;
 import org.openmrs.module.cdrsync.container.model.Container;
 import org.openmrs.module.cdrsync.model.enums.SyncType;
@@ -21,27 +20,35 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
+import static org.openmrs.module.cdrsync.utils.AppUtil.getFacilityMetaData;
 import static org.openmrs.module.cdrsync.utils.AppUtil.zipFolder;
 
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
 	
 	Logger logger = Logger.getLogger(this.getClass().getName());
 	
-	private ContainerService containerService;
+	private final ContainerService containerService;
 	
-	public ContainerService getContainerService() {
-		if (containerService == null)
-			this.containerService = new ContainerServiceImpl();
-		return containerService;
+	public CdrContainerServiceImpl() {
+		this.containerService = new ContainerServiceImpl();
 	}
+	
+	//	public ContainerService getContainerService() {
+	//		if (containerService == null)
+	//			this.containerService = new ContainerServiceImpl();
+	//		return containerService;
+	//	}
 	
 	@Override
 	@Transactional(readOnly = true)
 	public String getAllPatients(long patientCount, int start, int length, String type, String fullContextPath,
-	        String contextPath) {
+	        String contextPath, String url) {
 		String result;
 		String reportType = "CDR";
 		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
+		if (start == 0) {
+			getFacilityMetaData(url, reportFolder);
+		}
 		if (start < patientCount) {
 			List<Integer> patients = Context.getService(CdrSyncAdminService.class).getPatientIds(start, length, true);
 			result = buildContainer(patients, reportFolder);
@@ -61,10 +68,13 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	@Override
 	public String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length,
-	        String type, String fullContextPath, String contextPath) {
+	        String type, String fullContextPath, String contextPath, String url) {
 		String result;
 		String reportType = "CDR";
 		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
+		if (start == 0) {
+			getFacilityMetaData(url, reportFolder);
+		}
 		if (start < patientCount) {
 			List<Integer> patients = Context.getService(CdrSyncAdminService.class).getPatientsByLastSyncDate(startDate,
 			    endDate, null, true, start, length);
@@ -86,7 +96,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		try {
 			patientIds.forEach(patientId -> {
 				try {
-					getContainerService().createContainer(containers, count, patientId, reportFolder);
+					containerService.createContainer(containers, count, patientId, reportFolder);
 				} catch (IOException e) {
 					throw new RuntimeException(e);
 				}
@@ -131,6 +141,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	@Override
 	public long getPatientsCount(Date startDate, Date endDate, boolean includeVoided) {
+		//		getFacilityMetaData();
 		return Context.getService(CdrSyncAdminService.class).getPatientCountFromLastSyncDate(startDate, endDate, null,
 		    includeVoided);
 	}
