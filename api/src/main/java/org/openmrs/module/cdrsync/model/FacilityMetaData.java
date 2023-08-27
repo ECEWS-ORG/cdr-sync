@@ -1,8 +1,9 @@
 package org.openmrs.module.cdrsync.model;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class FacilityMetaData {
+public class FacilityMetaData implements Serializable {
 	
 	private String id;
 	
@@ -10,7 +11,7 @@ public class FacilityMetaData {
 	
 	private String facilityDatimCode;
 	
-	private String operatingSystem;
+	private SystemProperty systemProperty;
 	
 	private List<ModuleInfo> installedModules;
 	
@@ -42,14 +43,6 @@ public class FacilityMetaData {
 		this.facilityDatimCode = facilityDatimCode;
 	}
 	
-	public String getOperatingSystem() {
-		return operatingSystem;
-	}
-	
-	public void setOperatingSystem(String operatingSystem) {
-		this.operatingSystem = operatingSystem;
-	}
-	
 	public List<ModuleInfo> getInstalledModules() {
 		return installedModules;
 	}
@@ -57,4 +50,13 @@ public class FacilityMetaData {
 	public void setInstalledModules(List<ModuleInfo> installedModules) {
 		this.installedModules = installedModules;
 	}
+	
+	public SystemProperty getSystemProperty() {
+		return systemProperty;
+	}
+	
+	public void setSystemProperty(SystemProperty systemProperty) {
+		this.systemProperty = systemProperty;
+	}
+	
 }

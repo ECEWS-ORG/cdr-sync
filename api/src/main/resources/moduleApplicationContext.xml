@@ -39,6 +39,16 @@
             <ref bean="dbSessionFactory" />
         </property>
     </bean>
+    <bean id="cdrSync.CdrSyncPatientDao" class="org.openmrs.module.cdrsync.api.dao.impl.CdrSyncPatientDaoImpl">
+        <property name="sessionFactory">
+            <ref bean="dbSessionFactory" />
+        </property>
+    </bean>
+    <bean id="cdrSync.DatimMapDao" class="org.openmrs.module.cdrsync.api.dao.impl.DatimMapDaoImpl">
+        <property name="sessionFactory">
+            <ref bean="dbSessionFactory" />
+        </property>
+    </bean>
     <bean id="cdrsync.BiometricInfoService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
         <property name="transactionManager">
             <ref bean="transactionManager" />
@@ -119,6 +129,38 @@
             <ref bean="transactionAttributeSource" />
         </property>
     </bean>
+    <bean id="cdrsync.CdrSyncPatientService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+        <property name="transactionManager">
+            <ref bean="transactionManager" />
+        </property>
+        <property name="target">
+            <bean class="org.openmrs.module.cdrsync.api.impl.CdrSyncPatientServiceImpl">
+                <property name="dao" ref="cdrSync.CdrSyncPatientDao" />
+            </bean>
+        </property>
+        <property name="preInterceptors">
+            <ref bean="serviceInterceptors" />
+        </property>
+        <property name="transactionAttributeSource">
+            <ref bean="transactionAttributeSource" />
+        </property>
+    </bean>
+    <bean id="cdrsync.DatimMapService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+        <property name="transactionManager">
+            <ref bean="transactionManager" />
+        </property>
+        <property name="target">
+            <bean class="org.openmrs.module.cdrsync.api.impl.DatimMapServiceImpl">
+                <property name="dao" ref="cdrSync.DatimMapDao" />
+            </bean>
+        </property>
+        <property name="preInterceptors">
+            <ref bean="serviceInterceptors" />
+        </property>
+        <property name="transactionAttributeSource">
+            <ref bean="transactionAttributeSource" />
+        </property>
+    </bean>
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
@@ -156,6 +198,22 @@
             <list>
                 <value>org.openmrs.module.cdrsync.api.Covid19CaseService</value>
                 <ref bean="cdrsync.Covid19CaseService" />
+            </list>
+        </property>
+    </bean>
+    <bean parent="serviceContext">
+        <property name="moduleService">
+            <list>
+                <value>org.openmrs.module.cdrsync.api.CdrSyncPatientService</value>
+                <ref bean="cdrsync.CdrSyncPatientService" />
+            </list>
+        </property>
+    </bean>
+    <bean parent="serviceContext">
+        <property name="moduleService">
+            <list>
+                <value>org.openmrs.module.cdrsync.api.DatimMapService</value>
+                <ref bean="cdrsync.DatimMapService" />
             </list>
         </property>
     </bean>

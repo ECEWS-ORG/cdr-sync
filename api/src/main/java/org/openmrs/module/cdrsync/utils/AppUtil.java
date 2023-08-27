@@ -1,34 +1,25 @@
 package org.openmrs.module.cdrsync.utils;
 
 import org.apache.commons.io.FileUtils;
-//import org.apache.http.client.methods.CloseableHttpResponse;
-//import org.apache.http.client.methods.HttpGet;
-//import org.apache.http.client.methods.HttpPost;
-//import org.apache.http.entity.StringEntity;
-//import org.apache.http.impl.client.CloseableHttpClient;
-//import org.apache.http.impl.client.HttpClientBuilder;
-//import org.apache.http.util.EntityUtils;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.util.EntityUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.api.context.Context;
-import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
-import org.openmrs.module.cdrsync.model.DatimMap;
-import org.openmrs.module.cdrsync.model.FacilityMetaData;
-import org.openmrs.module.cdrsync.model.ModuleWrapper;
+import org.openmrs.module.Module;
+import org.openmrs.module.ModuleFactory;
+import org.openmrs.module.cdrsync.api.DatimMapService;
+import org.openmrs.module.cdrsync.model.*;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -72,7 +63,7 @@ public class AppUtil {
 	
 	public static DatimMap getDatimMap() {
 		if (datimMap == null)
-			datimMap = Context.getService(CdrSyncAdminService.class).getDatimMapByDatimCode(getDatimCode());
+			datimMap = Context.getService(DatimMapService.class).getDatimMapByDatimCode(getDatimCode());
 		return datimMap;
 	}
 	
@@ -167,7 +158,6 @@ public class AppUtil {
 				if (files != null) {
 					for (File file : files) {
 						if (file.getName().endsWith(".zip")) {
-							System.out.println("Context path: " + contextPath);
 							String filePath = file.getAbsolutePath();
 							int index = filePath.lastIndexOf(contextPath.substring(1));
 							filePath = filePath.substring(index);
@@ -241,39 +231,31 @@ public class AppUtil {
 	//		}
 	//	}
 	
-	public static void getFacilityMetaData(String url, String reportFolder) {
-		try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()) {
-			logger.info("Getting facility metadata::" + url);
-			String username = Context.getRuntimeProperties().getProperty("username");
-			String password = Context.getRuntimeProperties().getProperty("password");
-			String credentials = username + ":" + password;
-			String encodedCredentials = Base64.getEncoder().encodeToString(credentials.trim().getBytes());
+	public static void getFacilityMetaData(String reportFolder) {
+		try {
+			Collection<Module> loadedModules = ModuleFactory.getLoadedModules();
+			List<ModuleInfo> moduleInfos = loadedModules.stream().map(ModuleInfo::new).collect(Collectors.toList());
 
-			HttpGet get = new HttpGet(url);
-			get.setHeader("Content-Type", "application/json");
-			get.setHeader("Authorization", "Basic " + encodedCredentials);
+			SystemProperty systemProperty = new SystemProperty();
+			systemProperty.setOsName(System.getProperty("os.name"));
+			systemProperty.setOsVersion(System.getProperty("os.version"));
+			systemProperty.setOsArch(System.getProperty("os.arch"));
+			systemProperty.setJavaVersion(System.getProperty("java.version"));
+			systemProperty.setHostName(InetAddress.getLocalHost().getHostName());
+			systemProperty.setDiskSpace(new File("/").getTotalSpace() / 1024 / 1024 / 1024);
+			systemProperty.setUserName(System.getProperty("user.name"));
+			systemProperty.setRamSize(((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean())
+					.getTotalPhysicalMemorySize() / 1024 / 1024 / 1024);
 
-			try (CloseableHttpResponse response = httpClient.execute(get)){
-				int statusCode = response.getStatusLine().getStatusCode();
-				if (statusCode == 200) {
-					String responseBody = EntityUtils.toString(response.getEntity());
-					ObjectMapper objectMapper = getObjectMapper();
-					ModuleWrapper moduleWrapper = objectMapper.readValue(responseBody, ModuleWrapper.class);
-					FacilityMetaData facilityMetaData = new FacilityMetaData(moduleWrapper.getResults());
-					facilityMetaData.setId(getDatimCode());
-					facilityMetaData.setFacilityName(getFacilityName());
-					facilityMetaData.setFacilityDatimCode(getDatimCode());
-					facilityMetaData.setOperatingSystem(System.getProperty("os.name"));
-					logger.info("Modules::" + objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(facilityMetaData));
-					String fileName = getPartnerShortName() + "_" + getDatimCode() + "_facilityMetaData.json";
-					writeObjectToFile(facilityMetaData, fileName, reportFolder);
-				} else {
-					logger.warning("error sending request");
-					logger.warning("Response::" + response);
-				}
-			}
-		} catch (IOException e) {
-			logger.severe("Error::" + e.getMessage());
+			FacilityMetaData facilityMetaData = new FacilityMetaData(moduleInfos);
+			facilityMetaData.setSystemProperty(systemProperty);
+			facilityMetaData.setId(getDatimCode());
+			facilityMetaData.setFacilityName(getFacilityName());
+			facilityMetaData.setFacilityDatimCode(getDatimCode());
+			String fileName = getPartnerShortName() + "_" + getDatimCode() + "_facilityMetaData.json";
+			writeObjectToFile(facilityMetaData, fileName, reportFolder);
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 }

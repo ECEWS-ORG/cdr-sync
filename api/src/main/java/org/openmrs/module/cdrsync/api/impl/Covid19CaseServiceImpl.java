@@ -2,7 +2,7 @@ package org.openmrs.module.cdrsync.api.impl;
 
 import org.openmrs.module.cdrsync.api.Covid19CaseService;
 import org.openmrs.module.cdrsync.api.dao.Covid19CaseDao;
-import org.openmrs.module.cdrsync.model.Covid19Case;
+import org.openmrs.module.cdrsync.model.IntegratorClientIntake;
 
 import java.util.List;
 
@@ -15,7 +15,7 @@ public class Covid19CaseServiceImpl implements Covid19CaseService {
 	}
 	
 	@Override
-	public List<Covid19Case> getCovid19CasesByPatientId(Integer patientId) {
+	public List<IntegratorClientIntake> getCovid19CasesByPatientId(Integer patientId) {
 		return covid19CaseDao.getCovid19CasesByPatientId(patientId);
 	}
 }

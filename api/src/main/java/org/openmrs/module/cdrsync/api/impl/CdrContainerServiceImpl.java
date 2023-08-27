@@ -1,10 +1,11 @@
 package org.openmrs.module.cdrsync.api.impl;
 
 import org.openmrs.GlobalProperty;
+import org.openmrs.api.AdministrationService;
 import org.openmrs.api.context.Context;
 import org.openmrs.api.impl.BaseOpenmrsService;
 import org.openmrs.module.cdrsync.api.CdrContainerService;
-import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
+import org.openmrs.module.cdrsync.api.CdrSyncPatientService;
 import org.openmrs.module.cdrsync.api.ContainerService;
 import org.openmrs.module.cdrsync.container.model.Container;
 import org.openmrs.module.cdrsync.model.enums.SyncType;
@@ -29,28 +30,28 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	private final ContainerService containerService;
 	
+	private final CdrSyncPatientService cdrSyncPatientService;
+	
+	private final AdministrationService administrationService;
+	
 	public CdrContainerServiceImpl() {
 		this.containerService = new ContainerServiceImpl();
+		this.cdrSyncPatientService = Context.getService(CdrSyncPatientService.class);
+		this.administrationService = Context.getAdministrationService();
 	}
-	
-	//	public ContainerService getContainerService() {
-	//		if (containerService == null)
-	//			this.containerService = new ContainerServiceImpl();
-	//		return containerService;
-	//	}
 	
 	@Override
 	@Transactional(readOnly = true)
 	public String getAllPatients(long patientCount, int start, int length, String type, String fullContextPath,
-	        String contextPath, String url) {
+	        String contextPath, String url) throws IOException {
 		String result;
 		String reportType = "CDR";
 		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
 		if (start == 0) {
-			getFacilityMetaData(url, reportFolder);
+			getFacilityMetaData(reportFolder);
 		}
 		if (start < patientCount) {
-			List<Integer> patients = Context.getService(CdrSyncAdminService.class).getPatientIds(start, length, true);
+			List<Integer> patients = cdrSyncPatientService.getPatientIds(start, length, true);
 			result = buildContainer(patients, reportFolder);
 			return result;
 		} else {
@@ -63,21 +64,21 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	@Override
 	public List<Integer> getAllPatients(boolean includeVoided) {
-		return Context.getService(CdrSyncAdminService.class).getPatientIds(includeVoided);
+		return cdrSyncPatientService.getPatientIds(includeVoided);
 	}
 	
 	@Override
 	public String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length,
-	        String type, String fullContextPath, String contextPath, String url) {
+	        String type, String fullContextPath, String contextPath, String url) throws IOException {
 		String result;
 		String reportType = "CDR";
 		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
 		if (start == 0) {
-			getFacilityMetaData(url, reportFolder);
+			getFacilityMetaData(reportFolder);
 		}
 		if (start < patientCount) {
-			List<Integer> patients = Context.getService(CdrSyncAdminService.class).getPatientsByLastSyncDate(startDate,
-			    endDate, null, true, start, length);
+			List<Integer> patients = cdrSyncPatientService.getPatientsByLastSyncDate(startDate, endDate, null, true, start,
+			    length);
 			//			result = buildContainer(patients, startDate, endDate);
 			result = buildContainer(patients, reportFolder);
 			return result;
@@ -126,24 +127,23 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		Date syncDate = new Date();
 		DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
 		String syncDateString = dateFormat.format(syncDate);
-		if (Context.getAdministrationService().getGlobalProperty("last.cdr.sync") == null) {
+		if (administrationService.getGlobalProperty("last.cdr.sync") == null) {
 			GlobalProperty globalProperty = new GlobalProperty("last.cdr.sync", syncDateString, "Last sync date to CDR");
-			Context.getAdministrationService().saveGlobalProperty(globalProperty);
+			administrationService.saveGlobalProperty(globalProperty);
 		} else
-			Context.getAdministrationService().updateGlobalProperty("last.cdr.sync", syncDateString);
+			administrationService.updateGlobalProperty("last.cdr.sync", syncDateString);
 		logger.info("Last sync date to CDR: " + syncDateString);
 	}
 	
 	@Override
 	public long getPatientsCount(boolean includeVoided) {
-		return Context.getService(CdrSyncAdminService.class).getPatientsCount(includeVoided);
+		return cdrSyncPatientService.getPatientsCount(includeVoided);
 	}
 	
 	@Override
 	public long getPatientsCount(Date startDate, Date endDate, boolean includeVoided) {
 		//		getFacilityMetaData();
-		return Context.getService(CdrSyncAdminService.class).getPatientCountFromLastSyncDate(startDate, endDate, null,
-		    includeVoided);
+		return cdrSyncPatientService.getPatientCountFromLastSyncDate(startDate, endDate, null, includeVoided);
 	}
 	
 }

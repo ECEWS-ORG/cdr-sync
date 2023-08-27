@@ -1,59 +1,79 @@
 package org.openmrs.module.cdrsync.model;
 
 import org.codehaus.jackson.annotate.JsonProperty;
+import org.openmrs.module.Module;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class ModuleInfo {
+public class ModuleInfo implements Serializable {
 	
-	@JsonProperty("uuid")
-	public String uuid;
+	private String name;
 	
-	@JsonProperty("display")
-	public String display;
+	private String moduleId;
 	
-	@JsonProperty("name")
-	public String name;
+	private String packageName;
 	
-	@JsonProperty("description")
-	public String description;
+	private String description;
 	
-	@JsonProperty("packageName")
-	public String packageName;
+	private String author;
 	
-	@JsonProperty("author")
-	public String author;
+	private String version;
 	
-	@JsonProperty("version")
-	public String version;
+	public ModuleInfo(Module module) {
+		this.name = module.getName();
+		this.moduleId = module.getModuleId();
+		this.packageName = module.getPackageName();
+		this.description = module.getDescription();
+		this.author = module.getAuthor();
+		this.version = module.getVersion();
+	}
 	
-	@JsonProperty("started")
-	public Boolean started;
+	public String getName() {
+		return name;
+	}
 	
-	@JsonProperty("startupErrorMessage")
-	public Object startupErrorMessage;
+	public void setName(String name) {
+		this.name = name;
+	}
 	
-	@JsonProperty("requireOpenmrsVersion")
-	public String requireOpenmrsVersion;
+	public String getModuleId() {
+		return moduleId;
+	}
 	
-	@JsonProperty("awareOfModules")
-	public List<String> awareOfModules;
+	public void setModuleId(String moduleId) {
+		this.moduleId = moduleId;
+	}
 	
-	@JsonProperty("requiredModules")
-	public List<String> requiredModules;
+	public String getPackageName() {
+		return packageName;
+	}
 	
-	@JsonProperty("links")
-	public List<Link> links;
+	public void setPackageName(String packageName) {
+		this.packageName = packageName;
+	}
 	
-	@JsonProperty("resourceVersion")
-	public String resourceVersion;
+	public String getDescription() {
+		return description;
+	}
 	
-	static class Link {
-		
-		@JsonProperty("rel")
-		public String rel;
-		
-		@JsonProperty("uri")
-		public String uri;
+	public void setDescription(String description) {
+		this.description = description;
+	}
+	
+	public String getAuthor() {
+		return author;
+	}
+	
+	public void setAuthor(String author) {
+		this.author = author;
+	}
+	
+	public String getVersion() {
+		return version;
+	}
+	
+	public void setVersion(String version) {
+		this.version = version;
 	}
 }

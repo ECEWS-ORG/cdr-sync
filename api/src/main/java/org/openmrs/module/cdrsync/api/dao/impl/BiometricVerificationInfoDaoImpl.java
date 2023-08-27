@@ -7,7 +7,11 @@ import org.openmrs.api.db.hibernate.DbSessionFactory;
 import org.openmrs.module.cdrsync.api.dao.BiometricVerificationInfoDao;
 import org.openmrs.module.cdrsync.model.BiometricVerificationInfo;
 
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @SuppressWarnings("unchecked")
 public class BiometricVerificationInfoDaoImpl implements BiometricVerificationInfoDao {
@@ -27,8 +31,19 @@ public class BiometricVerificationInfoDaoImpl implements BiometricVerificationIn
 	
 	@Override
 	public List<BiometricVerificationInfo> getBiometricVerificationInfoByPatientId(Integer patientId) {
-		Criteria criteria = getSession().createCriteria(BiometricVerificationInfo.class);
-		criteria.add(Restrictions.eq("patientId", patientId));
-		return criteria.list();
+		AtomicBoolean tableExists = new AtomicBoolean(false);
+		getSession().doWork(connection -> {
+			DatabaseMetaData dbm = connection.getMetaData();
+			ResultSet tables = dbm.getTables(null, null, "biometricverificationinfo", null);
+			if (tables.next()) {
+				tableExists.set(true);
+			}
+		});
+		if (tableExists.get()) {
+			Criteria criteria = getSession().createCriteria(BiometricVerificationInfo.class);
+			criteria.add(Restrictions.eq("patientId", patientId));
+			return criteria.list();
+		}
+		return new ArrayList<>();
 	}
 }

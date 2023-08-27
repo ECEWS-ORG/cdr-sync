@@ -9,7 +9,7 @@ import org.openmrs.module.cdrsync.container.model.VisitType;
 import org.openmrs.module.cdrsync.container.model.*;
 import org.openmrs.module.cdrsync.model.BiometricInfo;
 import org.openmrs.module.cdrsync.model.BiometricVerificationInfo;
-import org.openmrs.module.cdrsync.model.Covid19Case;
+import org.openmrs.module.cdrsync.model.IntegratorClientIntake;
 import org.openmrs.module.cdrsync.model.DatimMap;
 import org.openmrs.module.cdrsync.utils.AppUtil;
 import org.openmrs.util.Security;
@@ -115,29 +115,27 @@ public class ContainerServiceImpl implements ContainerService {
         messageDataType.setPatientBiometricVerifications(buildPatientBiometricVerifications(patient, touchTime));
         messageDataType.setPatientPrograms(buildPatientProgram(patient, touchTime));
         messageDataType.setPatientIdentifiers(buildPatientIdentifier(patient, touchTime));
-//        messageDataType.setCovid19Cases(buildCovid19Cases(patient, touchTime));
+        messageDataType.setIntegratorClientIntakes(buildCovid19Cases(patient, touchTime));
         return messageDataType;
     }
 	
-	private List<Covid19CaseType> buildCovid19Cases(Patient patient, Date[] touchTime) {
-        List<Covid19CaseType> covid19CaseTypes = new ArrayList<>();
-        List<Covid19Case> covid19Cases = covid19CaseService.getCovid19CasesByPatientId(patient.getPatientId());
-        if (covid19Cases != null && !covid19Cases.isEmpty()) {
-            buildContainerCovid19CaseType(patient, touchTime, covid19CaseTypes, covid19Cases);
+	private List<IntegratorClientIntakeType> buildCovid19Cases(Patient patient, Date[] touchTime) {
+        List<IntegratorClientIntakeType> integratorClientIntakeTypes = new ArrayList<>();
+        List<IntegratorClientIntake> integratorClientIntakes = covid19CaseService.getCovid19CasesByPatientId(patient.getPatientId());
+        if (integratorClientIntakes != null && !integratorClientIntakes.isEmpty()) {
+            buildContainerCovid19CaseType(touchTime, integratorClientIntakeTypes, integratorClientIntakes);
         }
-        return covid19CaseTypes;
+        return integratorClientIntakeTypes;
     }
 	
-	private void buildContainerCovid19CaseType(Patient patient, Date[] touchTime, List<Covid19CaseType> covid19CaseTypes, List<Covid19Case> covid19Cases) {
-        covid19Cases.forEach(covid19Case -> {
-            Covid19CaseType covid19CaseType = new Covid19CaseType(covid19Case);
-            covid19CaseType.setPatientUuid(patient.getPerson().getUuid());
-            covid19CaseType.setDatimCode(getDatimCode());
+	private void buildContainerCovid19CaseType(Date[] touchTime, List<IntegratorClientIntakeType> integratorClientIntakeTypes, List<IntegratorClientIntake> integratorClientIntakes) {
+        integratorClientIntakes.forEach(covid19Case -> {
+            IntegratorClientIntakeType covid19CaseType = new IntegratorClientIntakeType(covid19Case);
 
-            covid19CaseTypes.add(covid19CaseType);
+            integratorClientIntakeTypes.add(covid19CaseType);
 
-            if (touchTime[0] == null || touchTime[0].before(covid19Case.getCaseStatusDate()))
-                touchTime[0] = covid19Case.getCaseStatusDate();
+            if (touchTime[0] == null || touchTime[0].before(covid19Case.getDateCreated()))
+                touchTime[0] = covid19Case.getDateCreated();
         });
     }
 	

@@ -128,6 +128,7 @@ public class CdrSyncPatientDaoImpl extends HibernatePatientDAO implements CdrSyn
 		        + " UNION ALL "
 		        + getQueryString(fromStr, toStr, patientIds, includeVoided, "biometricverificationinfo", "patient_id", true)
 		        + ") AS patient_id";
+		//todo add covid19 case table
 		SQLQuery sql = sessionFactory.getCurrentSession().createSQLQuery(query);
 		//		if (from != null) {
 		//			System.out.println("from: " + from);

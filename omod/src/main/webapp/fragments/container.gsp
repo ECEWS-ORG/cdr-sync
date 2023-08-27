@@ -63,27 +63,26 @@
         if (recentSyncBatches != null) {
             for (int i = 0; i < recentSyncBatches.size(); i++) {
     %>
-                <tr>
-                    <td><%= recentSyncBatches.get(i).getOwnerUsername() %></td>
-                    <td><%= recentSyncBatches.get(i).getPatientsProcessed() %></td>
-                    <td><%= recentSyncBatches.get(i).getPatients() %></td>
-                    <td><%= recentSyncBatches.get(i).getSyncType() %></td>
-                    <td><%= recentSyncBatches.get(i).getStatus() %></td>
-                    <td><%= recentSyncBatches.get(i).getDateStarted() %></td>
-                    <td><%= recentSyncBatches.get(i).getDateCompleted() %></td>
-                    <td>
-                        <i style="font-size: 20px;" class="icon-play edit-action" title="resume"></i>
-                        <i style="font-size: 20px;" class="icon-remove edit-action" title="delete file"></i>
-                        <i style="font-size: 20px;" class="icon-refresh edit-action" title="rerun file"></i>
-                    </td>
-                </tr>
+    <tr>
+        <td><%= recentSyncBatches.get(i).getOwnerUsername() %></td>
+        <td><%= recentSyncBatches.get(i).getPatientsProcessed() %></td>
+        <td><%= recentSyncBatches.get(i).getPatients() %></td>
+        <td><%= recentSyncBatches.get(i).getSyncType() %></td>
+        <td><%= recentSyncBatches.get(i).getStatus() %></td>
+        <td><%= recentSyncBatches.get(i).getDateStarted() %></td>
+        <td><%= recentSyncBatches.get(i).getDateCompleted() %></td>
+        <td>
+            <i style="font-size: 20px;" class="icon-play edit-action" title="resume"></i>
+            <i style="font-size: 20px;" class="icon-remove edit-action" title="delete file"></i>
+            <i style="font-size: 20px;" class="icon-refresh edit-action" title="rerun file"></i>
+        </td>
+    </tr>
     <%
             }
         }
     %>
     </tbody>
 </table>
-
 <script type="text/javascript">
     var jq = jQuery;
     jq("#custom_date").hide();
@@ -375,7 +374,6 @@
     }
 
     function downloadFile(fileName) {
-        console.log("Downloading " + fileName);
         window.location = fileName;
     }
 
