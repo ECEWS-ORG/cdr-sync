@@ -1,6 +1,6 @@
 package org.openmrs.module.cdrsync.container.model;
 
-import org.openmrs.module.cdrsync.model.IntegratorClientIntake;
+import org.openmrs.module.cdrsync.model.extractor.IntegratorClientIntake;
 import org.openmrs.util.Security;
 
 import java.io.Serializable;

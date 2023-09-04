@@ -14,37 +14,42 @@
 
     <!-- Wraps CdrsyncService methods in DB transactions and OpenMRS interceptors,
     which set audit info like dateCreated, changedBy, etc.-->
-    <bean id="cdrsync.BiometricInfoDao" class="org.openmrs.module.cdrsync.api.dao.impl.BiometricInfoDaoImpl">
+    <bean id="cdrsync.BiometricInfoDao" class="org.openmrs.module.cdrsync.api.extractor.dao.impl.BiometricInfoDaoImpl">
         <property name="sessionFactory">
             <ref bean="dbSessionFactory"/>
         </property>
     </bean>
-    <bean id="cdrsync.BiometricVerificationInfoDao" class="org.openmrs.module.cdrsync.api.dao.impl.BiometricVerificationInfoDaoImpl">
+    <bean id="cdrsync.BiometricVerificationInfoDao" class="org.openmrs.module.cdrsync.api.extractor.dao.impl.BiometricVerificationInfoDaoImpl">
         <property name="sessionFactory">
             <ref bean="dbSessionFactory"/>
         </property>
     </bean>
-    <bean id="cdrsync.EncounterDao" class="org.openmrs.module.cdrsync.api.dao.impl.EncounterDaoImpl">
+    <bean id="cdrsync.EncounterDao" class="org.openmrs.module.cdrsync.api.extractor.dao.impl.EncounterDaoImpl">
         <property name="sessionFactory">
             <ref bean="dbSessionFactory"/>
         </property>
     </bean>
-    <bean id="cdrSync.CdrSyncAdminDao" class="org.openmrs.module.cdrsync.api.dao.impl.CdrSyncAdminDaoImpl">
+    <bean id="cdrSync.CdrSyncAdminDao" class="org.openmrs.module.cdrsync.api.extractor.dao.impl.CdrSyncAdminDaoImpl">
         <property name="sessionFactory">
             <ref bean="dbSessionFactory" />
         </property>
     </bean>
-    <bean id="cdrSync.Covid19CaseDao" class="org.openmrs.module.cdrsync.api.dao.impl.Covid19CaseDaoImpl">
+    <bean id="cdrSync.Covid19CaseDao" class="org.openmrs.module.cdrsync.api.extractor.dao.impl.Covid19CaseDaoImpl">
         <property name="sessionFactory">
             <ref bean="dbSessionFactory" />
         </property>
     </bean>
-    <bean id="cdrSync.CdrSyncPatientDao" class="org.openmrs.module.cdrsync.api.dao.impl.CdrSyncPatientDaoImpl">
+    <bean id="cdrSync.CdrSyncPatientDao" class="org.openmrs.module.cdrsync.api.extractor.dao.impl.CdrSyncPatientDaoImpl">
         <property name="sessionFactory">
             <ref bean="dbSessionFactory" />
         </property>
     </bean>
-    <bean id="cdrSync.DatimMapDao" class="org.openmrs.module.cdrsync.api.dao.impl.DatimMapDaoImpl">
+    <bean id="cdrSync.DatimMapDao" class="org.openmrs.module.cdrsync.api.extractor.dao.impl.DatimMapDaoImpl">
+        <property name="sessionFactory">
+            <ref bean="dbSessionFactory" />
+        </property>
+    </bean>
+    <bean id="cdrSync.NfcCardMapperDao" class="org.openmrs.module.cdrsync.api.nfc_card.dao.impl.NfcCardMapperDaoImpl">
         <property name="sessionFactory">
             <ref bean="dbSessionFactory" />
         </property>
@@ -54,7 +59,7 @@
             <ref bean="transactionManager" />
         </property>
         <property name="target">
-            <bean class="org.openmrs.module.cdrsync.api.impl.BiometricInfoServiceImpl">
+            <bean class="org.openmrs.module.cdrsync.api.extractor.impl.BiometricInfoServiceImpl">
                 <property name="dao" ref="cdrsync.BiometricInfoDao" />
             </bean>
         </property>
@@ -70,7 +75,7 @@
             <ref bean="transactionManager" />
         </property>
         <property name="target">
-            <bean class="org.openmrs.module.cdrsync.api.impl.BiometricVerificationInfoServiceImpl">
+            <bean class="org.openmrs.module.cdrsync.api.extractor.impl.BiometricVerificationInfoServiceImpl">
                 <property name="dao" ref="cdrsync.BiometricVerificationInfoDao" />
             </bean>
         </property>
@@ -86,7 +91,7 @@
             <ref bean="transactionManager" />
         </property>
         <property name="target">
-            <bean class="org.openmrs.module.cdrsync.api.impl.EncounterServiceImpl">
+            <bean class="org.openmrs.module.cdrsync.api.extractor.impl.EncounterServiceImpl">
                 <property name="dao" ref="cdrsync.EncounterDao" />
             </bean>
         </property>
@@ -102,7 +107,7 @@
             <ref bean="transactionManager" />
         </property>
         <property name="target">
-            <bean class="org.openmrs.module.cdrsync.api.impl.CdrSyncAdminServiceImpl">
+            <bean class="org.openmrs.module.cdrsync.api.extractor.impl.CdrSyncAdminServiceImpl">
                 <property name="dao" ref="cdrSync.CdrSyncAdminDao" />
             </bean>
         </property>
@@ -118,7 +123,7 @@
             <ref bean="transactionManager" />
         </property>
         <property name="target">
-            <bean class="org.openmrs.module.cdrsync.api.impl.Covid19CaseServiceImpl">
+            <bean class="org.openmrs.module.cdrsync.api.extractor.impl.Covid19CaseServiceImpl">
                 <property name="dao" ref="cdrSync.Covid19CaseDao" />
             </bean>
         </property>
@@ -134,7 +139,7 @@
             <ref bean="transactionManager" />
         </property>
         <property name="target">
-            <bean class="org.openmrs.module.cdrsync.api.impl.CdrSyncPatientServiceImpl">
+            <bean class="org.openmrs.module.cdrsync.api.extractor.impl.CdrSyncPatientServiceImpl">
                 <property name="dao" ref="cdrSync.CdrSyncPatientDao" />
             </bean>
         </property>
@@ -150,8 +155,24 @@
             <ref bean="transactionManager" />
         </property>
         <property name="target">
-            <bean class="org.openmrs.module.cdrsync.api.impl.DatimMapServiceImpl">
+            <bean class="org.openmrs.module.cdrsync.api.extractor.impl.DatimMapServiceImpl">
                 <property name="dao" ref="cdrSync.DatimMapDao" />
+            </bean>
+        </property>
+        <property name="preInterceptors">
+            <ref bean="serviceInterceptors" />
+        </property>
+        <property name="transactionAttributeSource">
+            <ref bean="transactionAttributeSource" />
+        </property>
+    </bean>
+    <bean id="cdrsync.NfcCardMapperService" class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+        <property name="transactionManager">
+            <ref bean="transactionManager" />
+        </property>
+        <property name="target">
+            <bean class="org.openmrs.module.cdrsync.api.nfc_card.services.impl.NfcCardMapperServiceImpl">
+                <property name="dao" ref="cdrSync.NfcCardMapperDao" />
             </bean>
         </property>
         <property name="preInterceptors">
@@ -164,7 +185,7 @@
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
-                <value>org.openmrs.module.cdrsync.api.BiometricInfoService</value>
+                <value>org.openmrs.module.cdrsync.api.extractor.BiometricInfoService</value>
                 <ref bean="cdrsync.BiometricInfoService" />
             </list>
         </property>
@@ -172,7 +193,7 @@
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
-                <value>org.openmrs.module.cdrsync.api.BiometricVerificationInfoService</value>
+                <value>org.openmrs.module.cdrsync.api.extractor.BiometricVerificationInfoService</value>
                 <ref bean="cdrsync.BiometricVerificationInfoService" />
             </list>
         </property>
@@ -180,7 +201,7 @@
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
-                <value>org.openmrs.module.cdrsync.api.EncounterService</value>
+                <value>org.openmrs.module.cdrsync.api.extractor.EncounterService</value>
                 <ref bean="cdrsync.EncounterService" />
             </list>
         </property>
@@ -188,7 +209,7 @@
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
-                <value>org.openmrs.module.cdrsync.api.CdrSyncAdminService</value>
+                <value>org.openmrs.module.cdrsync.api.extractor.CdrSyncAdminService</value>
                 <ref bean="cdrsync.CdrSyncAdminService" />
             </list>
         </property>
@@ -196,7 +217,7 @@
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
-                <value>org.openmrs.module.cdrsync.api.Covid19CaseService</value>
+                <value>org.openmrs.module.cdrsync.api.extractor.Covid19CaseService</value>
                 <ref bean="cdrsync.Covid19CaseService" />
             </list>
         </property>
@@ -204,7 +225,7 @@
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
-                <value>org.openmrs.module.cdrsync.api.CdrSyncPatientService</value>
+                <value>org.openmrs.module.cdrsync.api.extractor.CdrSyncPatientService</value>
                 <ref bean="cdrsync.CdrSyncPatientService" />
             </list>
         </property>
@@ -212,8 +233,16 @@
     <bean parent="serviceContext">
         <property name="moduleService">
             <list>
-                <value>org.openmrs.module.cdrsync.api.DatimMapService</value>
+                <value>org.openmrs.module.cdrsync.api.extractor.DatimMapService</value>
                 <ref bean="cdrsync.DatimMapService" />
+            </list>
+        </property>
+    </bean>
+    <bean parent="serviceContext">
+        <property name="moduleService">
+            <list>
+                <value>org.openmrs.module.cdrsync.api.nfc_card.services.NfcCardMapperService</value>
+                <ref bean="cdrsync.NfcCardMapperService" />
             </list>
         </property>
     </bean>

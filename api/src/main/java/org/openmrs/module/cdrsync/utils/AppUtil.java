@@ -5,8 +5,11 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.Module;
 import org.openmrs.module.ModuleFactory;
-import org.openmrs.module.cdrsync.api.DatimMapService;
-import org.openmrs.module.cdrsync.model.*;
+import org.openmrs.module.cdrsync.api.extractor.DatimMapService;
+import org.openmrs.module.cdrsync.model.extractor.DatimMap;
+import org.openmrs.module.cdrsync.model.extractor.FacilityMetaData;
+import org.openmrs.module.cdrsync.model.extractor.ModuleInfo;
+import org.openmrs.module.cdrsync.model.extractor.SystemProperty;
 
 import java.io.File;
 import java.io.FileInputStream;

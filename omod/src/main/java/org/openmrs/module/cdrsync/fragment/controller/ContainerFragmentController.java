@@ -2,12 +2,12 @@ package org.openmrs.module.cdrsync.fragment.controller;
 
 import org.openmrs.api.UserService;
 import org.openmrs.api.context.Context;
-import org.openmrs.module.cdrsync.api.CdrContainerService;
-import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
-import org.openmrs.module.cdrsync.api.impl.CdrContainerServiceImpl;
-import org.openmrs.module.cdrsync.model.CdrSyncBatch;
-import org.openmrs.module.cdrsync.model.enums.SyncStatus;
-import org.openmrs.module.cdrsync.model.enums.SyncType;
+import org.openmrs.module.cdrsync.api.extractor.CdrContainerService;
+import org.openmrs.module.cdrsync.api.extractor.CdrSyncAdminService;
+import org.openmrs.module.cdrsync.api.extractor.impl.CdrContainerServiceImpl;
+import org.openmrs.module.cdrsync.model.extractor.CdrSyncBatch;
+import org.openmrs.module.cdrsync.model.extractor.enums.SyncStatus;
+import org.openmrs.module.cdrsync.model.extractor.enums.SyncType;
 import org.openmrs.ui.framework.annotation.SpringBean;
 import org.openmrs.ui.framework.fragment.FragmentModel;
 import org.springframework.http.HttpStatus;
@@ -52,7 +52,7 @@ public class ContainerFragmentController {
 		return new ResponseEntity<Long>(response, HttpStatus.OK);
 	}
 	
-	public ResponseEntity<Long> getPatientsCountFromLastSync(HttpServletRequest request) throws IOException {
+	public ResponseEntity<Long> getPatientsCountFromLastSync() throws IOException {
 		String lastSync = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
 		logger.info("Last sync date from db::" + lastSync);
 		long response;
