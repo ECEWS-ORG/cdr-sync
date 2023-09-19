@@ -1,16 +1,16 @@
 package org.openmrs.module.cdrsync.utils;
 
+import com.sun.management.OperatingSystemMXBean;
 import org.apache.commons.io.FileUtils;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.api.context.Context;
 import org.openmrs.module.Module;
 import org.openmrs.module.ModuleFactory;
+import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
 import org.openmrs.module.cdrsync.api.DatimMapService;
 import org.openmrs.module.cdrsync.model.*;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.nio.file.Files;
@@ -52,7 +52,7 @@ public class AppUtil {
 		return facilityName;
 	}
 	
-	private static ObjectMapper getObjectMapper() {
+	public static ObjectMapper getObjectMapper() {
 		if (objectMapper == null) {
 			objectMapper = new ObjectMapper();
 			DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -73,19 +73,26 @@ public class AppUtil {
 		return partnerShortName;
 	}
 	
-	public static String ensureDownloadDirectoryExists(String contextPath) {
+	public static String ensureDownloadDirectoryExists(String contextPath, int start, Boolean[] isFolderExist) {
 		String downloadDirectory = Paths.get(new File(contextPath).getParentFile().toString(), "downloads").toString();
 		File file = new File(downloadDirectory);
+		if (!file.exists() && start > 0) {
+			isFolderExist[0] = false;
+		}
 		if (!file.exists() && !file.mkdirs()) {
 			throw new RuntimeException("Unable to create download directory");
 		}
 		return downloadDirectory;
 	}
 	
-	public static String ensureReportDirectoryExists(String contextPath, String reportName, int start) {
-		String downloadDirectory = ensureDownloadDirectoryExists(contextPath);
+	public static String ensureReportDirectoryExists(String contextPath, String reportName, int start,
+	        Boolean[] isFolderExist) {
+		String downloadDirectory = ensureDownloadDirectoryExists(contextPath, start, isFolderExist);
 		String reportDirectory = Paths.get(downloadDirectory, reportName).toString();
 		File file = new File(reportDirectory);
+		if (!file.exists() && start > 0) {
+			isFolderExist[0] = false;
+		}
 		if (!file.exists() && !file.mkdirs()) {
 			throw new RuntimeException("Unable to create report directory");
 		} else if (file.exists()) {
@@ -106,7 +113,7 @@ public class AppUtil {
 		return new ArrayList<>(Arrays.asList(159635, 162729, 160638, 160641, 160642));
 	}
 	
-	public static void writeObjectToFile(Object object, String fileName, String reportFolder) throws IOException {
+	public static void writeObjectToFile(Object object, String fileName, String reportFolder) {
 		
 		File folder = new File(reportFolder);
 		
@@ -114,9 +121,20 @@ public class AppUtil {
 		if (!dir.exists() && !dir.mkdirs()) {
 			throw new RuntimeException("Unable to create directory " + dir.getAbsolutePath());
 		}
-		String json = getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(object);
+		String json;
+		try {
+			json = getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(object);
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 		File file = new File(dir, fileName);
-		FileUtils.writeStringToFile(file, json, "UTF-8");
+		try {
+			FileUtils.writeStringToFile(file, json, "UTF-8");
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 		
 		if (dir.listFiles() != null && Objects.requireNonNull(dir.listFiles()).length == 10000) {
 			try {
@@ -132,16 +150,114 @@ public class AppUtil {
 			}
 			catch (IOException e) {
 				e.printStackTrace();
+				throw new RuntimeException(e);
 			}
 			
 		}
 	}
 	
-	public static String zipFolder(String type, String reportFolder, String contextPath) {
+	public static void writeErrorToFile(String errorMessage, String fileName, String reportFolder) {
+		
 		File folder = new File(reportFolder);
-		File dir = new File(folder, "jsonFiles");
+		
+		File dir = new File(folder, "errorFolder");
+		if (!dir.exists() && !dir.mkdirs()) {
+			throw new RuntimeException("Unable to create directory " + dir.getAbsolutePath());
+		}
+		File file = new File(dir, fileName);
+		BufferedWriter writer = null;
+		try {
+			//			FileUtils.writeStringToFile(file, errorMessage + "\n", "UTF-8");
+			writer = new BufferedWriter(new FileWriter(file, true));
+			writer.write(errorMessage);
+			writer.newLine();
+		}
+		catch (IOException e) {
+			//			throw new RuntimeException(e);
+			e.printStackTrace();
+		}
+		finally {
+			try {
+				if (writer != null)
+					writer.close();
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		//		if (dir.listFiles() != null && Objects.requireNonNull(dir.listFiles()).length == 10000) {
+		//			try {
+		//				String facility = getFacilityName().replaceAll(" ", "_");
+		//				String dateString = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
+		//				ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(Paths.get(
+		//						folder.getAbsolutePath(),
+		//						getPartnerShortName() + "_" + getDatimCode() + "_" + facility + "_" + dateString + "_"
+		//								+ new Date().getTime() + ".zip")));
+		//				zipDirectory(dir, dir.getName(), zos);
+		//				zos.close();
+		//				FileUtils.cleanDirectory(dir);
+		//			}
+		//			catch (IOException e) {
+		//				e.printStackTrace();
+		//				throw new RuntimeException(e);
+		//			}
+		//
+		//		}
+	}
+	
+	public static String zipFolder(int id, String reportFolder, String contextPath) {
+		File folder = new File(reportFolder);
 		StringBuilder result = new StringBuilder();
 		String facility = getFacilityName().replaceAll(" ", "_");
+		zipContainerJsonFolder(folder, facility);
+		boolean hasError = zipErrorReportFolder(folder, facility);
+		File[] files = folder.listFiles();
+		if (files != null) {
+			for (File file : files) {
+				if (file.getName().endsWith(".zip")) {
+					String filePath = file.getAbsolutePath();
+					int index = filePath.lastIndexOf(contextPath.substring(1));
+					filePath = filePath.substring(index);
+					filePath = filePath.replace("\\", "\\\\");
+					filePath = "\\\\" + filePath;
+					result.append(filePath).append("&&");
+				}
+			}
+		} else {
+			logger.warning("No files found in the folder");
+		}
+		Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchDownloadUrls(id, result.toString().trim());
+		if (hasError)
+			return "Sync complete! Some data could not be extracted from the database, kindly contact the system administrator!#"
+			        + result.toString().trim();
+		else
+			return "Sync complete!#" + result.toString().trim();
+	}
+	
+	private static boolean zipErrorReportFolder(File folder, String facility) {
+		File errorDir = new File(folder, "errorFolder");
+		if (errorDir.listFiles() != null) {
+			ZipOutputStream zipOutputStream;
+			try {
+				String dateString = new SimpleDateFormat("dd-MM-yyyy").format(new Date());
+				zipOutputStream = new ZipOutputStream(Files.newOutputStream(Paths.get(folder.getAbsolutePath(), facility
+				        + "_errorReport_" + dateString + "_" + new Date().getTime() + ".zip")));
+				zipDirectory(errorDir, errorDir.getName(), zipOutputStream);
+				zipOutputStream.close();
+				FileUtils.deleteDirectory(errorDir);
+				return true;
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+				throw new RuntimeException(e);
+			}
+		}
+		return false;
+	}
+	
+	private static void zipContainerJsonFolder(File folder, String facility) {
+		File dir = new File(folder, "jsonFiles");
 		if (dir.listFiles() != null) {
 			ZipOutputStream zipOutputStream;
 			try {
@@ -154,28 +270,12 @@ public class AppUtil {
 				zipOutputStream.close();
 				FileUtils.deleteDirectory(dir);
 				
-				File[] files = folder.listFiles();
-				if (files != null) {
-					for (File file : files) {
-						if (file.getName().endsWith(".zip")) {
-							String filePath = file.getAbsolutePath();
-							int index = filePath.lastIndexOf(contextPath.substring(1));
-							filePath = filePath.substring(index);
-							filePath = filePath.replace("\\", "\\\\");
-							filePath = "\\\\" + filePath;
-							result.append(filePath).append("&&");
-						}
-					}
-				} else {
-					System.out.println("No files found in the folder");
-				}
 			}
 			catch (IOException e) {
 				e.printStackTrace();
 				throw new RuntimeException(e);
 			}
 		}
-		return "Sync complete!," + result.toString().trim();
 	}
 	
 	private static void zipDirectory(File directory, String baseName, ZipOutputStream zos) throws IOException {
@@ -210,7 +310,7 @@ public class AppUtil {
 	//		System.out.println("Syncing to CDR::" + url);
 	//		try (CloseableHttpClient httpClient = HttpClientBuilder.create().build()){
 	//			String json = objectMapper.writeValueAsString(containerWrapper);
-	//			String encryptedJson = Security.encrypt(json);
+	//			String encryptedJson = Security.encrypt(json, initVector, secretKey);
 	//			EncryptedBody encryptedBody = new EncryptedBody(encryptedJson);
 	//			HttpPost post = new HttpPost(url);
 	//			HttpGet get = new HttpGet(url);
@@ -231,10 +331,20 @@ public class AppUtil {
 	//		}
 	//	}
 	
+	public static String getInitVectorText() {
+		return "9wyBUNglFCRVSUhMfsTa3Q==";
+	}
+	
+	public static String getEncryptionKeyText() {
+		return "dTfyELRrAICGDwzjHDjuhw==";
+	}
+	
 	public static void getFacilityMetaData(String reportFolder) {
 		try {
 			Collection<Module> loadedModules = ModuleFactory.getLoadedModules();
 			List<ModuleInfo> moduleInfos = loadedModules.stream().map(ModuleInfo::new).collect(Collectors.toList());
+			String initVectorText = getInitVectorText();
+			String secretKeyText = getEncryptionKeyText();
 
 			SystemProperty systemProperty = new SystemProperty();
 			systemProperty.setOsName(System.getProperty("os.name"));
@@ -244,7 +354,7 @@ public class AppUtil {
 			systemProperty.setHostName(InetAddress.getLocalHost().getHostName());
 			systemProperty.setDiskSpace(new File("/").getTotalSpace() / 1024 / 1024 / 1024);
 			systemProperty.setUserName(System.getProperty("user.name"));
-			systemProperty.setRamSize(((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean())
+			systemProperty.setRamSize(((OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean())
 					.getTotalPhysicalMemorySize() / 1024 / 1024 / 1024);
 
 			FacilityMetaData facilityMetaData = new FacilityMetaData(moduleInfos);
@@ -252,6 +362,8 @@ public class AppUtil {
 			facilityMetaData.setId(getDatimCode());
 			facilityMetaData.setFacilityName(getFacilityName());
 			facilityMetaData.setFacilityDatimCode(getDatimCode());
+			facilityMetaData.setInitVectorText(initVectorText);
+			facilityMetaData.setEncryptionKeyText(secretKeyText);
 			String fileName = getPartnerShortName() + "_" + getDatimCode() + "_facilityMetaData.json";
 			writeObjectToFile(facilityMetaData, fileName, reportFolder);
 		} catch (Exception e) {

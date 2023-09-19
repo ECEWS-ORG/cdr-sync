@@ -46,31 +46,45 @@ public class ContainerFragmentController {
 		model.addAttribute("recentSyncBatches", recentSyncBatches);
 	}
 	
+	public ResponseEntity<List<CdrSyncBatch>> getRecentSyncBatches() {
+		List<CdrSyncBatch> recentSyncBatches = Context.getService(CdrSyncAdminService.class).getRecentSyncBatches();
+		return new ResponseEntity<List<CdrSyncBatch>>(recentSyncBatches, HttpStatus.OK);
+	}
+	
+	public ResponseEntity<String> getLastSyncDate() {
+		String lastSyncDate = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
+		if (lastSyncDate == null || lastSyncDate.isEmpty()) {
+			lastSyncDate = "N/A";
+		}
+		return new ResponseEntity<String>(lastSyncDate, HttpStatus.OK);
+	}
+	
 	public ResponseEntity<Long> getPatientsCount() throws IOException {
 		Long response = getContainerService().getPatientsCount(true);
 		logger.info("Total count from db::" + response);
 		return new ResponseEntity<Long>(response, HttpStatus.OK);
 	}
 	
-	public ResponseEntity<Long> getPatientsCountFromLastSync(HttpServletRequest request) throws IOException {
+	public ResponseEntity<String> getPatientsCountFromLastSync() throws IOException {
 		String lastSync = Context.getAdministrationService().getGlobalProperty("last.cdr.sync");
 		logger.info("Last sync date from db::" + lastSync);
-		long response;
+		String response;
 		if (lastSync != null && !lastSync.isEmpty()) {
 			try {
-				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
+				DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+				//				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
 				Date lastSyncDate = dateFormat.parse(lastSync);
 				logger.info("Last sync date::" + lastSyncDate);
-				response = getContainerService().getPatientsCount(lastSyncDate, new Date(), true);
+				response = lastSync + "/" + getContainerService().getPatientsCount(lastSyncDate, new Date(), true);
 			}
 			catch (ParseException e) {
 				e.printStackTrace();
-				return new ResponseEntity<Long>(0L, HttpStatus.INTERNAL_SERVER_ERROR);
+				return new ResponseEntity<String>(lastSync + "/0", HttpStatus.INTERNAL_SERVER_ERROR);
 			}
 		} else {
-			response = getContainerService().getPatientsCount(true);
+			response = lastSync + "/" + getContainerService().getPatientsCount(true);
 		}
-		return new ResponseEntity<Long>(response, HttpStatus.OK);
+		return new ResponseEntity<String>(response, HttpStatus.OK);
 	}
 	
 	public ResponseEntity<Long> getPatientsCountFromCustomDate(@RequestParam(value = "from") String from,
@@ -102,14 +116,13 @@ public class ContainerFragmentController {
 			cdrSyncBatch.setDateStarted(new Date());
 			cdrSyncBatch.setStatus(SyncStatus.IN_PROGRESS.name());
 			cdrSyncBatch.setSyncType(type);
-			logger.info("date completed::" + cdrSyncBatch.getDateCompleted());
 			Context.getService(CdrSyncAdminService.class).saveCdrSyncBatch(cdrSyncBatch);
 		}
 		Integer id = cdrSyncBatch.getId();
-		logger.info("Batch id::" + id);
 		String resp;
 		if (id != null) {
-			resp = cdrSyncBatch.getPatientsProcessed() + "/" + id;
+			resp = cdrSyncBatch.getPatientsProcessed() + "/" + id + "/" + cdrSyncBatch.getSyncType() + "/"
+			        + cdrSyncBatch.getPatients();
 		} else {
 			resp = cdrSyncBatch.getPatientsProcessed() + "/" + 0;
 		}
@@ -123,6 +136,12 @@ public class ContainerFragmentController {
 		int batchId = Integer.parseInt(id);
 		Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(batchId, SyncStatus.IN_PROGRESS.name(),
 		    processedPatients, false);
+	}
+	
+	public void updateCdrSyncBatchToCancelled(@RequestParam(value = "id") String id) {
+		int batchId = Integer.parseInt(id);
+		Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(batchId, SyncStatus.CANCELLED.name(), null,
+		    true);
 	}
 	
 	public ResponseEntity<String> getPatientsFromInitial(HttpServletRequest request,
@@ -144,9 +163,12 @@ public class ContainerFragmentController {
 		logger.info("Port::" + port);
 		String url = "http://" + host + ":" + port + contextPath + "/ws/rest/v1/module?v=full";
 		response = getContainerService().getAllPatients(totalPatients, startPoint, lengthOfPatients,
-		    SyncType.INITIAL.name(), fullContextPath, contextPath, url);
+		    SyncType.INITIAL.name(), fullContextPath, contextPath, url, Integer.parseInt(id));
 		if (response.contains("Sync complete!")) {
 			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(batchId, SyncStatus.COMPLETED.name(),
+			    startPoint, true);
+		} else if (response.contains("Cannot resume sync, kindly start a new sync!")) {
+			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(batchId, SyncStatus.CANCELLED.name(),
 			    startPoint, true);
 		}
 		return new ResponseEntity<String>(response, HttpStatus.OK);
@@ -167,12 +189,13 @@ public class ContainerFragmentController {
 		String url = "http://" + host + ":" + port + contextPath + "/ws/rest/v1/module?v=full";
 		if (lastSync != null && !lastSync.isEmpty()) {
 			try {
-				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
+				DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+				//				DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
 				Date lastSyncDate = dateFormat.parse(lastSync);
 				logger.info("Last sync date::" + lastSyncDate);
 				response = getContainerService().getAllPatients(Long.valueOf(total), lastSyncDate, new Date(),
 				    Integer.parseInt(start), Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath,
-				    contextPath, url);
+				    contextPath, url, Integer.parseInt(id));
 				return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 			}
 			catch (ParseException e) {
@@ -181,16 +204,28 @@ public class ContainerFragmentController {
 				return new ResponseEntity<String>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
 			}
 			catch (IOException e) {
-				logger.severe("Io exception::" + e.getMessage());
+				logger.severe("IO exception::" + e.getMessage());
 				e.printStackTrace();
 				return new ResponseEntity<String>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
 			}
 			
 		} else {
 			response = getContainerService().getAllPatients(Long.parseLong(total), Integer.parseInt(start),
-			    Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath, contextPath, url);
+			    Integer.parseInt(length), SyncType.INCREMENTAL.name(), fullContextPath, contextPath, url,
+			    Integer.parseInt(id));
 			return checkIfSyncHasCompletedAndUpdateSyncBatch(start, total, id, response);
 		}
+	}
+	
+	public void updateCdrSyncBatchStartAndEndDate(@RequestParam(value = "id") String id,
+	        @RequestParam(value = "startDate") String startDate, @RequestParam(value = "endDate") String endDate)
+	        throws ParseException {
+		logger.info("Updating start and end date range");
+		DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+		Date lastSyncDate = dateFormat.parse(startDate);
+		Date syncEndDate = dateFormat.parse(endDate);
+		Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStartAndEndDateRange(Integer.parseInt(id),
+		    lastSyncDate, syncEndDate);
 	}
 	
 	private ResponseEntity<String> checkIfSyncHasCompletedAndUpdateSyncBatch(String start, String total, String id,
@@ -198,6 +233,9 @@ public class ContainerFragmentController {
 		if (response.contains("Sync complete!")) {
 			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(Integer.parseInt(id),
 			    SyncStatus.COMPLETED.name(), Integer.parseInt(start), true);
+		} else if (response.contains("Cannot resume sync, kindly start a new sync!")) {
+			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(Integer.parseInt(id),
+			    SyncStatus.CANCELLED.name(), Integer.parseInt(start), true);
 		}
 		return new ResponseEntity<String>(response, HttpStatus.OK);
 	}
@@ -219,10 +257,14 @@ public class ContainerFragmentController {
 		logger.info("Port::" + port);
 		String url = "http://" + host + ":" + port + contextPath + "/ws/rest/v1/module?v=full";
 		String response = getContainerService().getAllPatients(Long.parseLong(total), startDate, endDate,
-		    Integer.parseInt(start), Integer.parseInt(length), SyncType.CUSTOM.name(), fullContextPath, contextPath, url);
+		    Integer.parseInt(start), Integer.parseInt(length), SyncType.CUSTOM.name(), fullContextPath, contextPath, url,
+		    Integer.parseInt(id));
 		if (response.contains("Sync complete!")) {
 			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(Integer.parseInt(id),
 			    SyncStatus.COMPLETED.name(), Integer.parseInt(start), true);
+		} else if (response.contains("Cannot resume sync, kindly start a new sync!")) {
+			Context.getService(CdrSyncAdminService.class).updateCdrSyncBatchStatus(Integer.parseInt(id),
+			    SyncStatus.CANCELLED.name(), Integer.parseInt(start), true);
 		}
 		return new ResponseEntity<String>(response, HttpStatus.OK);
 	}
@@ -231,4 +273,8 @@ public class ContainerFragmentController {
 		getContainerService().saveLastSyncDate();
 	}
 	
+	public ResponseEntity<String> deleteCdrSyncBatch(@RequestParam(value = "id") String id) {
+		Context.getService(CdrSyncAdminService.class).deleteCdrSyncBatch(Integer.parseInt(id));
+		return new ResponseEntity<String>("Batch deleted successfully!", HttpStatus.OK);
+	}
 }

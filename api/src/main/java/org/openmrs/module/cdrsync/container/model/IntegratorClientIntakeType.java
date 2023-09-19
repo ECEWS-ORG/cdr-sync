@@ -4,7 +4,11 @@ import org.openmrs.module.cdrsync.model.IntegratorClientIntake;
 import org.openmrs.util.Security;
 
 import java.io.Serializable;
+import java.util.Base64;
 import java.util.Date;
+
+import static org.openmrs.module.cdrsync.utils.AppUtil.getEncryptionKeyText;
+import static org.openmrs.module.cdrsync.utils.AppUtil.getInitVectorText;
 
 public class IntegratorClientIntakeType implements Serializable {
 	
@@ -165,19 +169,21 @@ public class IntegratorClientIntakeType implements Serializable {
 	private String ncdComment;
 	
 	public IntegratorClientIntakeType(IntegratorClientIntake integratorClientIntake) {
+		byte[] initVector = Base64.getDecoder().decode(getInitVectorText());
+		byte[] secretKey = Base64.getDecoder().decode(getEncryptionKeyText());
 		this.clientIntakeId = integratorClientIntake.getClientIntakeId();
 		this.patientId = integratorClientIntake.getPatientId();
 		this.patientIdentifier = integratorClientIntake.getPatientIdentifier();
 		this.gender = integratorClientIntake.getGender();
-		this.phoneNumber = integratorClientIntake.getPhoneNumber() != null ? Security.encrypt(integratorClientIntake
-		        .getPhoneNumber()) : null;
-		this.patientName = integratorClientIntake.getPatientName() != null ? Security.encrypt(integratorClientIntake
-		        .getPatientName()) : null;
-		this.familyName = integratorClientIntake.getFamilyName() != null ? Security.encrypt(integratorClientIntake
-		        .getFamilyName()) : null;
+		this.phoneNumber = integratorClientIntake.getPhoneNumber() != null ? Security.encrypt(
+		    integratorClientIntake.getPhoneNumber(), initVector, secretKey) : null;
+		this.patientName = integratorClientIntake.getPatientName() != null ? Security.encrypt(
+		    integratorClientIntake.getPatientName(), initVector, secretKey) : null;
+		this.familyName = integratorClientIntake.getFamilyName() != null ? Security.encrypt(
+		    integratorClientIntake.getFamilyName(), initVector, secretKey) : null;
 		this.age = integratorClientIntake.getAge();
-		this.address = integratorClientIntake.getAddress() != null ? Security.encrypt(integratorClientIntake.getAddress())
-		        : null;
+		this.address = integratorClientIntake.getAddress() != null ? Security.encrypt(integratorClientIntake.getAddress(),
+		    initVector, secretKey) : null;
 		this.state = integratorClientIntake.getState();
 		this.lga = integratorClientIntake.getLga();
 		this.encounterDate = integratorClientIntake.getEncounterDate();
@@ -249,16 +255,8 @@ public class IntegratorClientIntakeType implements Serializable {
 		this.ncdComment = integratorClientIntake.getNcdComment();
 	}
 	
-	public Integer getClientIntakeId() {
-		return clientIntakeId;
-	}
-	
 	public Integer getPatientId() {
 		return patientId;
-	}
-	
-	public String getPatientIdentifier() {
-		return patientIdentifier;
 	}
 	
 	public String getGender() {

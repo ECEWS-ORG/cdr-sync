@@ -62,5 +62,11 @@
                  splitStatements="true"
                  endDelimiter=";"/>
     </changeSet>
+    <changeSet id="update_cdr_sync_batch-2023-09-14" author="Innocent">
+        <sqlFile path="sql/add_column_sync_batch.sql"
+                 stripComments="true"
+                 splitStatements="true"
+                 endDelimiter=";"/>
+    </changeSet>
  
 </databaseChangeLog>

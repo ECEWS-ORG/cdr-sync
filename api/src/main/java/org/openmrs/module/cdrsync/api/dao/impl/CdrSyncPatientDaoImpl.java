@@ -11,9 +11,12 @@ import org.openmrs.api.db.hibernate.HibernatePatientDAO;
 import org.openmrs.module.cdrsync.api.dao.CdrSyncPatientDao;
 import org.openmrs.module.cdrsync.model.DatimMap;
 
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -126,22 +129,30 @@ public class CdrSyncPatientDaoImpl extends HibernatePatientDAO implements CdrSyn
 		        + " UNION ALL "
 		        + getQueryString(fromStr, toStr, patientIds, includeVoided, "biometricinfo", "patient_id", true)
 		        + " UNION ALL "
-		        + getQueryString(fromStr, toStr, patientIds, includeVoided, "biometricverificationinfo", "patient_id", true)
-		        + ") AS patient_id";
-		//todo add covid19 case table
+		        + getQueryString(fromStr, toStr, patientIds, includeVoided, "biometricverificationinfo", "patient_id", true);
+		if (checkIfTableExists("integrator_client_intake")) {
+			query += " UNION ALL "
+			        + getQueryString(fromStr, toStr, patientIds, includeVoided, "integrator_client_intake", "patient_id",
+			            false);
+		}
+		query += ") AS patient_id";
 		SQLQuery sql = sessionFactory.getCurrentSession().createSQLQuery(query);
-		//		if (from != null) {
-		//			System.out.println("from: " + from);
-		//			sql.setTimestamp("from", from);
-		//		}
-		//		if (to != null) {
-		//			System.out.println("to: " + to);
-		//			sql.setTimestamp("to", to);
-		//		}
 		if (patientIds != null && patientIds.size() > 0)
 			sql.setParameterList("patientIds", patientIds);
 		
 		return sql;
+	}
+	
+	private boolean checkIfTableExists (String tableName) {
+		AtomicBoolean tableExists = new AtomicBoolean(false);
+		sessionFactory.getCurrentSession().doWork(connection -> {
+			DatabaseMetaData dbm = connection.getMetaData();
+			ResultSet tables = dbm.getTables(null, null, tableName, null);
+			if (tables.next()) {
+				tableExists.set(true);
+			}
+		});
+		return tableExists.get();
 	}
 	
 	private String getQueryString(String from, String to, List<String> patientIds, boolean includeVoided, String tableName,

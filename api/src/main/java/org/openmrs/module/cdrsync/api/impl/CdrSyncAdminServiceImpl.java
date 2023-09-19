@@ -1,12 +1,11 @@
 package org.openmrs.module.cdrsync.api.impl;
 
-import org.openmrs.api.db.DAOException;
 import org.openmrs.api.impl.AdministrationServiceImpl;
 import org.openmrs.module.cdrsync.api.CdrSyncAdminService;
 import org.openmrs.module.cdrsync.api.dao.CdrSyncAdminDao;
 import org.openmrs.module.cdrsync.model.CdrSyncBatch;
-import org.openmrs.module.cdrsync.model.DatimMap;
 
+import java.util.Date;
 import java.util.List;
 
 public class CdrSyncAdminServiceImpl extends AdministrationServiceImpl implements CdrSyncAdminService {
@@ -23,7 +22,7 @@ public class CdrSyncAdminServiceImpl extends AdministrationServiceImpl implement
 	}
 	
 	@Override
-	public void updateCdrSyncBatchStatus(int batchId, String status, int patientsProcessed, boolean done) {
+	public void updateCdrSyncBatchStatus(int batchId, String status, Integer patientsProcessed, boolean done) {
 		syncAdminDao.updateCdrSyncBatchStatus(batchId, status, patientsProcessed, done);
 	}
 	
@@ -37,4 +36,18 @@ public class CdrSyncAdminServiceImpl extends AdministrationServiceImpl implement
 		return syncAdminDao.getRecentSyncBatches();
 	}
 	
+	@Override
+	public void updateCdrSyncBatchStartAndEndDateRange(int batchId, Date startDate, Date endDate) {
+		syncAdminDao.updateCdrSyncBatchStartAndEndDateRange(batchId, startDate, endDate);
+	}
+	
+	@Override
+	public void updateCdrSyncBatchDownloadUrls(int batchId, String downloadUrls) {
+		syncAdminDao.updateCdrSyncBatchDownloadUrls(batchId, downloadUrls);
+	}
+	
+	@Override
+	public void deleteCdrSyncBatch(int batchId) {
+		syncAdminDao.deleteCdrSyncBatch(batchId);
+	}
 }

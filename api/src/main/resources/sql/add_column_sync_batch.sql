@@ -1,0 +1,4 @@
+ALTER TABLE cdr_sync_batch
+    ADD COLUMN sync_start_date TIMESTAMP DEFAULT NULL NULL,
+    ADD COLUMN sync_end_date TIMESTAMP DEFAULT NULL NULL,
+    ADD COLUMN download_urls TEXT NULL;
