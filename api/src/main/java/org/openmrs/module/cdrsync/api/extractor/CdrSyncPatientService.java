@@ -12,6 +12,8 @@ public interface CdrSyncPatientService extends PatientService {
 	
 	Long getPatientsCount(boolean includeVoided) throws DAOException;
 	
+	Long getCountOfPatientsOnArt(boolean includeVoided) throws DAOException;
+	
 	List<Patient> getPatients(Integer start, Integer length, boolean includeVoided) throws DAOException;
 	
 	List<Integer> getPatientIds(Integer start, Integer length, boolean includeVoided) throws DAOException;

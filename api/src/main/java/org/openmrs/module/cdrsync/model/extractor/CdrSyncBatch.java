@@ -32,8 +32,14 @@ public class CdrSyncBatch {
 	@Column(name = "date_completed")
 	private Date dateCompleted;
 	
-	//	@Column(name = "date_updated")
-	//	private Date dateUpdated;
+	@Column(name = "sync_start_date")
+	private Date syncStartDate;
+	
+	@Column(name = "sync_end_date")
+	private Date syncEndDate;
+	
+	@Column(name = "download_urls")
+	private String downloadUrls;
 	
 	@Column(name = "status")
 	private String status;
@@ -130,5 +136,21 @@ public class CdrSyncBatch {
 	
 	public void setSyncType(String syncType) {
 		this.syncType = syncType;
+	}
+	
+	public Date getSyncStartDate() {
+		return syncStartDate;
+	}
+	
+	public void setSyncStartDate(Date syncStartDate) {
+		this.syncStartDate = syncStartDate;
+	}
+	
+	public Date getSyncEndDate() {
+		return syncEndDate;
+	}
+	
+	public void setSyncEndDate(Date syncEndDate) {
+		this.syncEndDate = syncEndDate;
 	}
 }

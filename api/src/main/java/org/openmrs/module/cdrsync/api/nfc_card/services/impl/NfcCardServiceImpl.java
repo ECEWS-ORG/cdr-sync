@@ -26,7 +26,7 @@ public class NfcCardServiceImpl implements NfcCardService {
 	@Override
     public ApiResponse<?> getNfcCardByPatientIdentifier(String patientIdentifier) {
         NfcCardMapper nfcCardMapper = nfcCardMapperService.getNfcCardMapperByPatientIdentifier(patientIdentifier);
-        return new ApiResponse<>(OK, "Successful", nfcCardMapper);
+        return new ApiResponse<>(true, "Successful", nfcCardMapper);
     }
 	
 	@Override
@@ -34,9 +34,9 @@ public class NfcCardServiceImpl implements NfcCardService {
         NfcCardMapper nfcCardMapper = nfcCardMapperService.getNfcCardMapperByNfcCardId(nfcCardId);
         if (nfcCardMapper != null) {
             String url = "http://" + hostName + ":" + port + "/openmrs/coreapps/clinicianfacing/patient.page?patientId=" + nfcCardMapper.getPatientUuid();
-            return new ApiResponse<>(OK, "Successful", url);
+            return new ApiResponse<>(true, "Successful", url);
         }
-        return new ApiResponse<>(OK, "Card not mapped yet", null);
+        return new ApiResponse<>(false, "Card not mapped yet", null);
     }
 	
 	@Override
@@ -51,12 +51,12 @@ public class NfcCardServiceImpl implements NfcCardService {
         nfcCardMapperService.saveNfcCardMapper(nfcCard);
 
         String url = "http://" + hostName + ":" + port + "/openmrs/coreapps/clinicianfacing/patient.page?patientId=" + patientUuid;
-        return new ApiResponse<>(OK, "Successful", url);
+        return new ApiResponse<>(true, "Successful", url);
     }
 	
 	@Override
     public ApiResponse<List<PatientDto>> getPatientDetails(String patientIdentifier, int identifierType) {
         List<PatientDto> patientDetails = nfcCardMapperService.getPatientDetails(patientIdentifier, identifierType);
-        return new ApiResponse<>(OK, "Successful", patientDetails);
+        return new ApiResponse<>(true, "Successful", patientDetails);
     }
 }

@@ -21,8 +21,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
-import static org.openmrs.module.cdrsync.utils.AppUtil.getFacilityMetaData;
-import static org.openmrs.module.cdrsync.utils.AppUtil.zipFolder;
+import static org.openmrs.module.cdrsync.utils.AppUtil.*;
 
 public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrContainerService {
 	
@@ -43,10 +42,14 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	@Override
 	@Transactional(readOnly = true)
 	public String getAllPatients(long patientCount, int start, int length, String type, String fullContextPath,
-	        String contextPath, String url) throws IOException {
+	        String contextPath, String url, int id) throws IOException {
 		String result;
 		String reportType = "CDR";
-		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
+		Boolean[] isFolderStillExisting = { true };
+		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start, isFolderStillExisting);
+		if (!isFolderStillExisting[0]) {
+			return "Cannot resume sync, kindly start a new sync!";
+		}
 		if (start == 0) {
 			getFacilityMetaData(reportFolder);
 		}
@@ -58,7 +61,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 			if (!type.equals(SyncType.CUSTOM.name())) {
 				saveLastSyncDate();
 			}
-			return zipFolder(type, reportFolder, contextPath);
+			return zipFolder(id, reportFolder, contextPath);
 		}
 	}
 	
@@ -69,10 +72,14 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	
 	@Override
 	public String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length,
-	        String type, String fullContextPath, String contextPath, String url) throws IOException {
+	        String type, String fullContextPath, String contextPath, String url, int id) throws IOException {
 		String result;
 		String reportType = "CDR";
-		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start);
+		Boolean[] isFolderStillExisting = { true };
+		String reportFolder = AppUtil.ensureReportDirectoryExists(fullContextPath, reportType, start, isFolderStillExisting);
+		if (!isFolderStillExisting[0]) {
+			return "Cannot resume sync, kindly start a new sync!";
+		}
 		if (start == 0) {
 			getFacilityMetaData(reportFolder);
 		}
@@ -86,7 +93,7 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 			if (!type.equals(SyncType.CUSTOM.name())) {
 				saveLastSyncDate();
 			}
-			return zipFolder(type, reportFolder, contextPath);
+			return zipFolder(id, reportFolder, contextPath);
 		}
 	}
 	
@@ -94,20 +101,17 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 		List<Container> containers = new ArrayList<>();
 		String resp;
 		AtomicInteger count = new AtomicInteger();
-		try {
-			patientIds.forEach(patientId -> {
-				try {
-					containerService.createContainer(containers, count, patientId, reportFolder);
-				} catch (IOException e) {
-					throw new RuntimeException(e);
-				}
-			});
-		} catch (RuntimeException e) {
-			logger.severe(e.getMessage());
-			e.printStackTrace();
-			resp = "There's a problem connecting to the server. Please, check your connection and try again.";
-			return resp;
-		}
+		patientIds.forEach(patientId -> {
+			try {
+				containerService.createContainer(containers, count, patientId, reportFolder);
+			} catch (RuntimeException e) {
+				logger.severe(e.getMessage());
+//				e.printStackTrace();
+				writeErrorToFile(e.getMessage(), "patient_" + patientId+"_error.txt", reportFolder);
+				//			resp = "There's a problem extracting data from the database, kindly contact the system administrator!";
+//			return resp;
+			}
+		});
 //		if (!containers.isEmpty()) {
 //			try {
 //				syncContainersToCdr(containers);
@@ -125,7 +129,8 @@ public class CdrContainerServiceImpl extends BaseOpenmrsService implements CdrCo
 	@Override
 	public void saveLastSyncDate() {
 		Date syncDate = new Date();
-		DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
+		//		DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy'T'hh:mm:ss");
+		DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
 		String syncDateString = dateFormat.format(syncDate);
 		if (administrationService.getGlobalProperty("last.cdr.sync") == null) {
 			GlobalProperty globalProperty = new GlobalProperty("last.cdr.sync", syncDateString, "Last sync date to CDR");

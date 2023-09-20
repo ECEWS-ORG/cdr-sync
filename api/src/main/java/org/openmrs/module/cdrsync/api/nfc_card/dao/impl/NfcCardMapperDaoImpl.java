@@ -33,8 +33,6 @@ public class NfcCardMapperDaoImpl implements NfcCardMapperDao {
 		Criteria criteria = getSession().createCriteria(NfcCardMapper.class);
 		criteria.add(Restrictions.eq("nfcCardId", nfcCardId));
 		return (NfcCardMapper) criteria.uniqueResult();
-		//		return (NfcCardMapper) getSession().createQuery("from NfcCardMapper where nfcCardId = :nfcCardId")
-		//		        .setParameter("nfcCardId", nfcCardId).uniqueResult();
 	}
 	
 	@Override
@@ -42,8 +40,6 @@ public class NfcCardMapperDaoImpl implements NfcCardMapperDao {
 		Criteria criteria = getSession().createCriteria(NfcCardMapper.class);
 		criteria.add(Restrictions.eq("patientIdentifier", patientIdentifier));
 		return (NfcCardMapper) criteria.uniqueResult();
-		//		return (NfcCardMapper) getSession().createQuery("from NfcCardMapper where patientIdentifier = :patientIdentifier")
-		//		        .setParameter("patientIdentifier", patientIdentifier).uniqueResult();
 	}
 	
 	@Override
@@ -89,5 +85,12 @@ public class NfcCardMapperDaoImpl implements NfcCardMapperDao {
 			patientDtos.add(patientDto);
 		}
 		return patientDtos;
+	}
+	
+	@Override
+	public Long getNumberOfMappedPatients() {
+		String query = "SELECT COUNT(*) FROM nfc_card_mapper";
+		Query q = getSession().createSQLQuery(query);
+		return ((Number) q.uniqueResult()).longValue();
 	}
 }

@@ -24,6 +24,11 @@ public class CdrSyncPatientServiceImpl extends PatientServiceImpl implements Cdr
 	}
 	
 	@Override
+	public Long getCountOfPatientsOnArt(boolean includeVoided) throws DAOException {
+		return dao.getCountOfPatientsOnArt(includeVoided);
+	}
+	
+	@Override
 	public List<Patient> getPatients(Integer start, Integer length, boolean includeVoided) throws DAOException {
 		return dao.getPatients(start, length, includeVoided);
 	}

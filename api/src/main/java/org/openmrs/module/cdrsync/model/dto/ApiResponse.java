@@ -1,28 +1,33 @@
 package org.openmrs.module.cdrsync.model.dto;
 
+import org.codehaus.jackson.annotate.JsonProperty;
+
 public class ApiResponse<T> {
 	
-	private String status;
+	@JsonProperty("Status")
+	private boolean status;
 	
+	@JsonProperty("Message")
 	private String message;
 	
+	@JsonProperty("Data")
 	private T data;
 	
 	public ApiResponse() {
 	}
 	
-	public ApiResponse(String status, String message, T data) {
+	public ApiResponse(boolean status, String message, T data) {
 		this.status = status;
 		this.message = message;
 		this.data = data;
 	}
 	
-	public ApiResponse(String status, String message) {
+	public ApiResponse(boolean status, String message) {
 		this.status = status;
 		this.message = message;
 	}
 	
-	public String getStatus() {
+	public boolean getStatus() {
 		return this.status;
 	}
 	
@@ -34,7 +39,7 @@ public class ApiResponse<T> {
 		return this.data;
 	}
 	
-	public void setStatus(String status) {
+	public void setStatus(boolean status) {
 		this.status = status;
 	}
 	

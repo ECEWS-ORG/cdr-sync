@@ -1,5 +1,6 @@
 package org.openmrs.module.cdrsync.fragment.controller;
 
+import org.codehaus.jackson.map.ObjectMapper;
 import org.openmrs.module.cdrsync.model.dto.ApiResponse;
 import org.openmrs.module.cdrsync.api.nfc_card.services.NfcCardService;
 import org.openmrs.module.cdrsync.api.nfc_card.services.impl.NfcCardServiceImpl;
@@ -7,8 +8,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import javax.servlet.http.HttpServletRequest;
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.logging.Logger;
 
+import static org.openmrs.module.cdrsync.utils.AppUtil.getObjectMapper;
 import static org.springframework.http.HttpStatus.OK;
 
 public class NfcFragmentController {
@@ -54,5 +59,39 @@ public class NfcFragmentController {
 		int port = request.getServerPort();
 		return new ResponseEntity<ApiResponse<String>>(getNfcCardService().saveNfcCardMapper(nfcCardId, patientIdentifier,
 		    patientUuid, patientPhoneNo, hostName, port), OK);
+	}
+	
+	public ResponseEntity<ApiResponse<String>> readNfcCard() {
+		Socket socket = null;
+		try {
+			socket = new Socket("localhost", 12345);
+			
+			// Create input stream for data exchange
+			
+			InputStream inputStream = socket.getInputStream();
+			BufferedReader in = new BufferedReader(new InputStreamReader(inputStream));
+			
+			// Receive data from the server
+			String serverResponse = in.readLine();
+			logger.info("Server says: " + serverResponse);
+			
+			ObjectMapper mapper = getObjectMapper();
+			ApiResponse apiResponse = mapper.readValue(serverResponse, ApiResponse.class);
+			
+			return new ResponseEntity<ApiResponse<String>>(apiResponse, OK);
+		}
+		catch (IOException e) {
+			return new ResponseEntity<ApiResponse<String>>(new ApiResponse<String>(false, e.getMessage()), OK);
+		}
+		finally {
+			if (socket != null) {
+				try {
+					socket.close();
+				}
+				catch (IOException e) {
+					logger.warning(e.getMessage());
+				}
+			}
+		}
 	}
 }

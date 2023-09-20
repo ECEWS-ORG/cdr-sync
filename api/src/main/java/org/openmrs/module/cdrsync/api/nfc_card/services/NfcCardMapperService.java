@@ -14,4 +14,6 @@ public interface NfcCardMapperService {
 	NfcCardMapper saveNfcCardMapper(NfcCardMapper nfcCardMapper);
 	
 	List<PatientDto> getPatientDetails(String patientIdentifier, int identifierType);
+	
+	Long getNumberOfMappedPatients();
 }

@@ -11,6 +11,10 @@ public class FacilityMetaData implements Serializable {
 	
 	private String facilityDatimCode;
 	
+	private String initVectorText;
+	
+	private String encryptionKeyText;
+	
 	private SystemProperty systemProperty;
 	
 	private List<ModuleInfo> installedModules;
@@ -57,6 +61,22 @@ public class FacilityMetaData implements Serializable {
 	
 	public void setSystemProperty(SystemProperty systemProperty) {
 		this.systemProperty = systemProperty;
+	}
+	
+	public String getInitVectorText() {
+		return initVectorText;
+	}
+	
+	public void setInitVectorText(String initVectorText) {
+		this.initVectorText = initVectorText;
+	}
+	
+	public String getEncryptionKeyText() {
+		return encryptionKeyText;
+	}
+	
+	public void setEncryptionKeyText(String encryptionKeyText) {
+		this.encryptionKeyText = encryptionKeyText;
 	}
 	
 }

@@ -37,4 +37,9 @@ public class NfcCardMapperServiceImpl implements NfcCardMapperService {
 	public List<PatientDto> getPatientDetails(String patientIdentifier, int identifierType) {
 		return nfcCardMapperDao.getPatientDetails(patientIdentifier, identifierType);
 	}
+	
+	@Override
+	public Long getNumberOfMappedPatients() {
+		return nfcCardMapperDao.getNumberOfMappedPatients();
+	}
 }

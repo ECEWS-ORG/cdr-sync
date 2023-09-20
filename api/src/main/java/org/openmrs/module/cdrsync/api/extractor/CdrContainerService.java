@@ -12,14 +12,14 @@ public interface CdrContainerService extends OpenmrsService {
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
 	String getAllPatients(long patientCount, int start, int length, String type, String fullContextPath, String contextPath,
-	        String url) throws IOException;
+	        String url, int id) throws IOException;
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
 	List<Integer> getAllPatients(boolean includeVoided) throws IOException;
 	
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)
 	String getAllPatients(Long patientCount, Date startDate, Date endDate, Integer start, Integer length, String type,
-	        String fullContextPath, String contextPath, String url) throws IOException;
+	        String fullContextPath, String contextPath, String url, int id) throws IOException;
 	
 	//	String getPatientsByEncounterDateTime(Date from, Date to) throws IOException;
 	@Authorized(CdrsyncConfig.MODULE_PRIVILEGE)

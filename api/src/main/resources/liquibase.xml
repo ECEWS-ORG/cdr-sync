@@ -42,6 +42,12 @@
                  splitStatements="true"
                  endDelimiter=";"/>
     </changeSet>
+    <changeSet id="update_cdr_sync_batch-2023-09-14" author="Innocent">
+        <sqlFile path="sql/add_column_sync_batch.sql"
+                 stripComments="true"
+                 splitStatements="true"
+                 endDelimiter=";"/>
+    </changeSet>
     <changeSet id="create_nfc_card_mapper_2023-08-28" author="Innocent">
         <sqlFile path="sql/nfc_card_mapper.sql"
                  stripComments="true"

@@ -41,16 +41,19 @@ public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements C
 	}
 	
 	@Override
-	public void updateCdrSyncBatchStatus(int batchId, String status, int patientsProcessed, boolean done) {
-		StringBuilder query = new StringBuilder("update cdr_sync_batch set status = :status, "
-		        + "total_number_of_patients_processed = :patientsProcessed");
+	public void updateCdrSyncBatchStatus(int batchId, String status, Integer patientsProcessed, boolean done) {
+		StringBuilder query = new StringBuilder("update cdr_sync_batch set status = :status");
 		if (done) {
 			query.append(", date_completed = :dateCompleted");
+		}
+		if (patientsProcessed != null) {
+			query.append(", total_number_of_patients_processed = :patientsProcessed");
 		}
 		query.append(" where cdr_sync_batch_id = :batchId");
 		Query q = sessionFactory.getCurrentSession().createSQLQuery(query.toString());
 		q.setParameter("status", status);
-		q.setParameter("patientsProcessed", patientsProcessed);
+		if (patientsProcessed != null)
+			q.setParameter("patientsProcessed", patientsProcessed);
 		if (done) {
 			q.setParameter("dateCompleted", new Date());
 		}
@@ -62,8 +65,8 @@ public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements C
 	public CdrSyncBatch getCdrSyncBatchByStatusAndOwner(String status, String owner, String syncType) {
 		Criteria criteria = sessionFactory.getCurrentSession().createCriteria(CdrSyncBatch.class);
 		criteria.add(Restrictions.eq("status", status));
-		criteria.add(Restrictions.eq("ownerUsername", owner));
-		criteria.add(Restrictions.eq("syncType", syncType));
+		//		criteria.add(Restrictions.eq("ownerUsername", owner));
+		//		criteria.add(Restrictions.eq("syncType", syncType));
 		return (CdrSyncBatch) criteria.uniqueResult();
 	}
 	
@@ -72,5 +75,36 @@ public class CdrSyncAdminDaoImpl extends HibernateAdministrationDAO implements C
 		criteria.addOrder(Order.desc("dateStarted"));
 		criteria.setMaxResults(10);
 		return criteria.list();
+	}
+	
+	@Override
+	public void updateCdrSyncBatchStartAndEndDateRange(int batchId, Date startDate, Date endDate) {
+		Query q = sessionFactory.getCurrentSession().createSQLQuery(
+		    "update cdr_sync_batch set sync_start_date = :startDate, sync_end_date = :endDate"
+		            + " where cdr_sync_batch_id = :batchId");
+		q.setParameter("startDate", startDate);
+		q.setParameter("endDate", endDate);
+		q.setParameter("batchId", batchId);
+		int i = q.executeUpdate();
+		log.info("Finished updating::" + i);
+	}
+	
+	@Override
+	public void updateCdrSyncBatchDownloadUrls(int batchId, String downloadUrls) {
+		Query q = sessionFactory.getCurrentSession().createSQLQuery(
+		    "update cdr_sync_batch set download_urls = :downloadUrls" + " where cdr_sync_batch_id = :batchId");
+		q.setParameter("downloadUrls", downloadUrls);
+		q.setParameter("batchId", batchId);
+		int i = q.executeUpdate();
+		log.info("Finished updating::" + i);
+	}
+	
+	@Override
+	public void deleteCdrSyncBatch(int batchId) {
+		Query q = sessionFactory.getCurrentSession().createSQLQuery(
+		    "delete from cdr_sync_batch where cdr_sync_batch_id = :batchId");
+		q.setParameter("batchId", batchId);
+		int i = q.executeUpdate();
+		log.info("Finished deleting::" + i);
 	}
 }
